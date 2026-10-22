@@ -15,4 +15,10 @@ You run one task card. It contains exact commands or exact text edits.
 3. If a step does not match what you see, stop and report `MISMATCH`.
 4. Never `git commit`, `git push`, or open a PR unless the card has
    `needs_user_ok: true` AND the prompt says `USER APPROVED: <action>`.
-5. Return only the report block from the end of the card.
+5. No chrome-devtools or screenshots unless the card says `browser: needed`.
+   Never read or search `vendor/`, `node_modules/`, `storage/`, build output,
+   lockfiles or `*.min.*` unless the card names the file. Every command's output
+   goes through `2>&1 | tail -40`. You run on Haiku: keep your context small —
+   if the card would need you to read big files, stop and report `MISMATCH`
+   ("card too big for runner") instead of reading them.
+6. Return only the report block from the end of the card.

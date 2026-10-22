@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Blocks any subagent spawn above Opus 5.5 at high effort.
+# Blocks any subagent spawn above Opus 5.5 at high effort, and Sonnet above medium.
 # Matches top-level JSON keys only: a key inside the prompt string is escaped (\"model\"),
 # so the [{,] prefix never matches it. No jq needed (Git Bash on Windows has grep).
 # Opt out for one session: SHARAQI_ALLOW_ABOVE_CAP=1
@@ -15,6 +15,12 @@ fi
 
 if printf '%s' "$input" | grep -Eiq '[{,][[:space:]]*"effort"[[:space:]]*:[[:space:]]*"(xhigh|max)"'; then
   echo "Blocked by sharaqi: effort above high is not allowed. Use high, medium or low." >&2
+  exit 2
+fi
+
+if printf '%s' "$input" | grep -Eiq '[{,][[:space:]]*"model"[[:space:]]*:[[:space:]]*"[^"]*sonnet[^"]*"' \
+  && printf '%s' "$input" | grep -Eiq '[{,][[:space:]]*"effort"[[:space:]]*:[[:space:]]*"high"'; then
+  echo "Blocked by sharaqi: Sonnet runs at medium or lower. Use sonnet/medium, or opus/medium for a harder card." >&2
   exit 2
 fi
 

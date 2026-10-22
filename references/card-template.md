@@ -3,8 +3,9 @@ id: T01
 title: <imperative, ≤ 8 words>
 agent: builder            # runner | builder
 model: sonnet                   # haiku | sonnet | opus
-effort: medium                  # low | medium | high
+effort: medium                  # low | medium (sonnet max medium; opus builders medium only)
 routing_reason: <one line: matrix row # and why>
+browser: none                   # none | needed — <why nothing else can verify it>
 depends_on: []                  # card ids
 files: [app/Http/Controllers/FooController.php]   # the ONLY files this card may change
 prd_refs: [5.2, AC-3]           # PRD sections the builder must read
@@ -37,8 +38,18 @@ With:
 - Add dependencies, migrations or config unless listed above.
 - <card-specific traps>
 
+## Token limits
+- Read only the files and line ranges under Context; no searching in `vendor/`,
+  `node_modules/`, `storage/`, build output, lockfiles or `*.min.*`.
+- Every command: `<cmd> 2>&1 | tail -40`.
+- Haiku card: the whole run stays under ~100K tokens of context (Context list
+  ≤ ~3 files or ranges, no file read whole if it is over ~300 lines).
+
 ## Verify
-Run, in order, and expect:
+Run, in order, and expect. Targeted and fail-fast — e.g.
+`php artisan test --filter=FooTest --stop-on-failure 2>&1 | tail -40`,
+`npx vitest run path/to/foo.test.ts --bail=1 2>&1 | tail -40` — never the whole
+suite unless the plan says why.
 1. `<command>` → `<expected output or exit 0>`
 2. `<command>` → `<expected>`
 

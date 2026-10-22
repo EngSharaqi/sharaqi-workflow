@@ -2,20 +2,44 @@
 
 Base: <sha> · Diff: `git diff <sha>` · Verdict: **PASS | FIX**
 
-## Acceptance criteria
+Reviewer: <model>/<effort> — <why this size>
+
+## A · Spec — acceptance criteria
 | AC | Met? | Evidence (`file:line`) | Note |
 |---|---|---|---|
 | AC-1 | yes / no / partly | | |
 
 ## Findings
-Ranked, most severe first. Only real defects or spec deviations — no style
-preferences the PRD did not ask for.
+One list per axis, most severe first inside each axis. Do not merge or re-rank
+across axes. No style preferences the PRD or the repo's standards don't ask for.
 
-### R<n>-1 · <severity: blocker | major | minor> · <title>
+### A · Spec
+### R<n>-1 · spec · <severity: blocker | major | minor> · <title>
 - Where: `file:line`
 - What is wrong: <one or two sentences>
 - Scenario: <input/state → wrong result>
 - Fix card: F<n>01
+
+### B · Quality
+### R<n>-2 · quality · <severity> · <title>
+(same fields)
+
+### C · Security
+| Check | Result |
+|---|---|
+| Injection (SQL / shell / path) | ok · finding R<n>-x · n/a |
+| Authorization (middleware, policy, IDOR) | |
+| Input validation & mass assignment | |
+| Output / XSS | |
+| CSRF & sessions | |
+| Secrets & data exposure | |
+| File upload / download | |
+| Dependencies | |
+
+### R<n>-3 · security · <severity> · <title>
+- Where: `file:line`
+- Attack: <who sends what → what they get>
+- Fix card: F<n>0x
 
 ## Out-of-scope changes
 Anything in the diff that no card asked for (revert or keep — say which).
