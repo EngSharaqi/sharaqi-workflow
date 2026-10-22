@@ -1,7 +1,7 @@
 {
   "name": "sharaqi",
-  "version": "0.5.0",
-  "description": "/sharaqi do <task>: the main session does the work; risk is assessed before editing and again on the diff (FAST / STANDARD / CRITICAL), checks and independent review scale with that risk, and the report states only what was actually verified.",
+  "version": "0.6.0",
+  "description": "/sharaqi do <task>: Opus orchestrates and plans only when needed; the cheapest model that gets it right (Haiku or Sonnet, effort at most medium) implements; checks and review scale with the risk, and the report states only what was actually verified.",
   "author": {
     "name": "Mohamed A. Sharaqi"
   }

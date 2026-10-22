@@ -1,51 +1,67 @@
 # sharaqi
 
-A Claude Code skill for development tasks. The main session does the work. The
-skill makes it assess risk before editing and again on the actual diff, scale
-checks and review to that risk, and finish with a report that states only
-what was actually verified.
+A Claude Code skill for development tasks. Opus orchestrates: it sizes the
+task, diagnoses, plans only when the task needs a plan, and hands the
+implementation to the cheapest model that will get it right (Haiku or Sonnet,
+effort at most medium). It then re-runs the checks itself, reviews the diff in
+proportion to the risk, and finishes with a report that states only what was
+actually verified.
 
 ```
 /sharaqi do <task>
 ```
 
-## Why v0.5 changed direction
+## History
 
-v0.4 was a pipeline: an Opus planner wrote cards, cheaper models built them,
-an Opus reviewer checked every run. On one real task, it cost about 8× more
-and took about 20× longer than doing the same task directly. The
-handoffs, re-reads and cache re-reads on the Opus steps outweighed what the
-cheap builders saved. Its "tokens saved" report re-priced the pipeline itself
-instead of comparing it with direct work, and it undercounted output tokens.
-
-v0.5 keeps what held up (risk-aware review, the security checklist, cheap
-context habits, the model ceiling) and drops the rest.
+- **v0.4** was a fixed pipeline: an Opus planner wrote cards with code in
+  them, cheaper models built them, an Opus reviewer checked every run. On one
+  real task it cost about 8× more and took about 20× longer than doing the
+  task directly. The Opus steps (planner, dispatcher, reviewer) re-read a
+  large context on every tool turn, and the dispatcher fell back to Opus.
+- **v0.5** made the main session do everything. Fast, but no delegation at
+  all.
+- **v0.6** delegates again, without the v0.4 costs: no planner or dispatcher
+  by default, no code in plans or briefs, briefs as paths and names,
+  rework sent to the same agent so it doesn't re-read, and trivial edits done
+  inline because starting a subagent costs more than they do.
 
 ## How a task runs
 
-1. **Understand**: one-line task statement and acceptance criteria, from the
-   user's words. Questions only when the answer changes what gets built.
-2. **Assess risk before editing**: FAST, STANDARD or CRITICAL, from semantic
-   risk, uncertainty, coupling, test coverage and blast radius. Line count
-   is a signal only. See [references/triage.md](references/triage.md).
-3. **Implement** in the main session.
-4. **Verify** with the repo's own checks, in proportion to the mode.
-5. **Reassess on the diff**, which can raise the mode but never lowers it, then review
-   ([references/review.md](references/review.md)):
+1. **Understand**: one-line task and acceptance criteria. Opus diagnoses an
+   unclear bug itself.
+2. **Risk and route**: FAST, STANDARD or CRITICAL from
+   [triage.md](references/triage.md), and who implements from
+   [delegation.md](references/delegation.md). A plan only when the task needs
+   one (coupled steps, several designs, or CRITICAL), with no code in it.
+3. **Implement**: inline for tiny edits, otherwise one
+   [brief](references/brief.md) per slice to the `implementer` agent:
 
-   | Mode | Review |
+   | Rung | For |
    |---|---|
-   | FAST | self-review of the diff |
-   | STANDARD | self-review; independent reviewer only when the risk justifies it, with the reason stated |
-   | CRITICAL | mandatory read-only `reviewer` agent, [security checklist](references/security-checklist.md), user approval before risky actions |
+   | inline (Opus) | ≤ ~3 tool calls, exact edit already known |
+   | haiku · low / medium | mechanical work on an existing pattern |
+   | sonnet · low / medium | real feature and bug work (medium is the default) |
+   | opus · medium | a slice that needs judgement a brief can't pin down |
+   | Plan agent · opus · high | only a genuinely hard plan, with the reason stated |
 
-6. **Report**: what changed, which checks ran and what they showed, mode,
-   review, delegation, acceptance criteria, risks and unknowns, and token
-   usage from the local transcript (or `unavailable`).
+4. **Verify**: Opus re-runs the checks; an implementer's "done" is a claim.
+5. **Review** ([review.md](references/review.md)): existing-test edits first,
+   an "implementer sweep" for generated-code failure modes, the post-diff
+   scan, and an independent reviewer when the risk justifies it (sonnet ·
+   medium in STANDARD, opus · medium in CRITICAL). Fixes go back to the same
+   agent as a delta.
+6. **Report**: changes, checks, mode, plan, every delegation with its model
+   and effort, review, acceptance criteria, risks, and tokens per model.
 
-Subagents are used only for a concrete reason: broad exploration, truly
-parallel workstreams, risk-justified review, or a job a cheaper model has been
-shown to do as well. See [references/delegation.md](references/delegation.md).
+Every delegation is printed as it happens:
+
+```
+▶ implementer · sonnet · effort medium — 3 files, new query hook on the existing pattern
+◀ implementer · sonnet · effort medium — DONE, 3 files changed, lint + typecheck green
+```
+
+Ceiling: never Fable, never above Opus · high, Sonnet and Haiku never above
+medium.
 
 ## Install
 
@@ -68,13 +84,21 @@ claude plugin install sharaqi@sharaqi-workflow
 
 Start a new session afterwards.
 
-The hooks in `hooks/` and the `reviewer` agent load only when Claude Code
-loads the folder as a plugin. Both installs above do that on current Claude
-Code: the skills-folder clone contains `.claude-plugin/plugin.json`, so it is
-listed as `sharaqi@skills-dir` under `claude plugin list`. Check that list. If
-sharaqi isn't in it, the hooks aren't running and the model ceiling is only an
-instruction. When they do load, the hooks apply to every session, not only to
-`/sharaqi` runs.
+The `implementer` and `reviewer` agents and the hooks in `hooks/hooks.json`
+load only when Claude Code loads the folder as a plugin. Both installs above
+do that on current Claude Code: the skills-folder clone contains
+`.claude-plugin/plugin.json`, so it is listed as `sharaqi@skills-dir` under
+`claude plugin list`. Check that list. When they load, the `hooks.json` hooks
+apply to every session, not only to `/sharaqi` runs.
+
+`SKILL.md` also registers its own hook when `/sharaqi` runs, for the rest of
+that session: the model ceiling, plus a block on any Agent call that names no
+model. It finds the script through `CLAUDE_PLUGIN_ROOT`, or
+`~/.claude/skills/sharaqi` when that isn't set.
+
+`model: opus` and `effort: medium` in `SKILL.md` apply to the `/sharaqi`
+turn only. Follow-up messages in the same session run on the session's model,
+so keep the session on Opus 5.5 at medium.
 
 Python 3 is needed only for the token report. Without it, the report says
 `unavailable`.
@@ -99,10 +123,12 @@ Skip setup if you're just trying sharaqi out. Everything else works without it.
 | `references/triage.md` | risk factors and the three modes |
 | `references/review.md` | post-diff scan; when and how to use the reviewer |
 | `references/security-checklist.md` | security items for CRITICAL (and any that apply elsewhere) |
-| `references/delegation.md` | when a subagent is worth its cost |
+| `references/delegation.md` | who implements: the rungs, the ceiling, announcing, escalation, slices |
+| `references/brief.md` | how to write a brief: pointers, no code, real checks; rework as a delta |
 | `references/setup.md` | `/sharaqi setup` |
+| `agents/implementer.md` | implements one brief; Read/Edit/Write/Bash/Grep/Glob, no Agent; never commits |
 | `agents/reviewer.md` | reviewer with Read/Grep/Glob only: spec · quality · security, returns findings |
-| `hooks/cap-model.sh` | when loaded as a plugin: blocks Agent calls that ask for a model above Opus/high, or Sonnet above medium |
+| `hooks/cap-model.sh` | blocks Agent calls above Opus/high, Fable, and Sonnet/Haiku above medium; with `--require-model` (while `/sharaqi` is active) also calls that name no model |
 | `hooks/session-hints.sh` | when loaded as a plugin: suggests a fresh session after repeated compactions |
 | `scripts/tokens.py` | token usage from the local transcript, priced at API list rates |
 | `tests/` | tests for the hooks and `tokens.py` |
@@ -128,7 +154,10 @@ guessing.
 |---|---|---|
 | Reviewer can't change anything | Claude Code: the agent has no Bash, Edit or Write | none known |
 | Ask before commit / push / PR | Claude Code permission rules, if you accepted them in setup | other command forms (`git -C . push`, `sh -c`, scripts) aren't matched; use the sandbox network allowlist or branch protection for a hard guarantee |
-| Model ceiling (no Fable, no `xhigh`/`max`, Sonnet ≤ medium) | `cap-model.sh`, when loaded as a plugin | can't see a model that is inherited or set in an agent file; the skill tells the model to always pass `model` explicitly |
+| Model ceiling (no Fable, no `xhigh`/`max`, Sonnet and Haiku ≤ medium) | `cap-model.sh`: globally when loaded as a plugin, and from the skill's own hook once `/sharaqi` runs | outside `/sharaqi` sessions a call with no `model` passes unchecked; if the script path doesn't resolve, the skill hook fails open |
+| Every Agent call names a model | `cap-model.sh --require-model`, while `/sharaqi` is active | the `model` key is matched in the hook input as text, not parsed |
+| Orchestrator on Opus · medium | `model`/`effort` in `SKILL.md` frontmatter | the `/sharaqi` turn only; ignored if your organisation's `availableModels` excludes it |
+| No code in plans or briefs; implementers don't commit | instruction only | the implementer has Bash, so permission rules from setup are the real guard on commit and push |
 | Nothing leaves the machine (publish, email, tickets) | instruction only | the model can still do it |
 | No claimed checks without a run; secrets by location only | instruction only | — |
 
@@ -137,7 +166,7 @@ and the report doesn't say they do.
 
 ## Not measured yet
 
-v0.5 has not been benchmarked against a plain Claude Code session. The v0.4
+v0.6 has not been benchmarked against v0.5 or a plain Claude Code session. The v0.4
 numbers above come from one task. The comparison that would settle it:
 
 1. Three tasks on one repo: one FAST (copy or style), one STANDARD (bug or

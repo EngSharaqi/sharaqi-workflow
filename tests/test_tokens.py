@@ -76,6 +76,9 @@ class TokensTest(unittest.TestCase):
         self.assertIn("UNPRICED_REQUESTS: 1", r.stdout)
         self.assertIn("| sharaqi:reviewer | haiku | 1 |", r.stdout)
         self.assertIn("PRICES_CHECKED:", r.stdout)
+        # Sorted by cost: opus $0.0154, then haiku $0.0103.
+        self.assertIn("By model (tokens · requests · $): opus ", r.stdout)
+        self.assertIn(" · 1 · `$0.02` | haiku ", r.stdout)
 
     def test_arabic_summary(self):
         r = self.run_script("--lang", "ar")

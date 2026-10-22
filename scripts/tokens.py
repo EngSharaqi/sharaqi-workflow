@@ -181,6 +181,17 @@ def main():
         if stale:
             line += " · ⚠️ price table last checked %s, may be out of date" % PRICES_CHECKED.isoformat()
     print(line)
+
+    by_model = {}
+    for (_, fam), g in groups.items():
+        m = by_model.setdefault(fam, {"calls": 0, "tok": 0, "cost": 0.0})
+        m["calls"] += g["calls"]
+        m["tok"] += g["in"] + g["write"] + g["read"] + g["out"]
+        m["cost"] += g["cost"]
+    parts = ["%s %s · %d · `$%.2f`" % (fam, m_tok(m["tok"]), m["calls"], m["cost"])
+             for fam, m in sorted(by_model.items(), key=lambda kv: -kv[1]["cost"])]
+    label = "حسب الموديل (توكنز · طلبات · $)" if a.lang == "ar" else "By model (tokens · requests · $)"
+    print("%s: %s" % (label, " | ".join(parts)))
     return 0
 
 

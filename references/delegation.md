@@ -1,37 +1,81 @@
-# Delegation — when a subagent is worth its cost
+# Delegation — who does each part, on which model and effort
 
-Default: none. A subagent starts a fresh context, re-reads files you may
-already have read, and hands back a summary you then have to trust or check.
-In measured sharaqi v0.4 runs, the handoffs and re-reads cost more than the
-cheaper models saved. Delegate only when one of these holds, and print one
-line first: `▶ <agent> · <model>/<effort> — <reason>`.
+You (Opus, the orchestrator) think: size the task, diagnose, plan when needed,
+write briefs, read diffs. Cheaper models do the typing: reading files,
+editing, running checks. The many tool turns are where tokens go, and on Opus
+each turn re-reads a large context. That is what delegation saves, and only
+when the brief is short and the work is more than a few tool calls.
 
-| Reason | Agent | Model / effort |
-|---|---|---|
-| Broad exploration: many files, directories or naming conventions, where you only need the conclusion | `Explore` | `haiku`; `sonnet` / `medium` when the search needs judgement |
-| Genuinely parallel workstreams: two or more independent parts that touch different files and each need substantial work | `general-purpose`, one per part | `sonnet` / `medium` for well-specified parts; `opus` / `medium` when a part needs judgement |
-| Independent review justified by risk | `reviewer` (this skill) | see review.md |
-| A specialised job a cheaper model has been shown to do as well, at lower total cost | whichever agent fits | the cheaper model |
+## The rule: cheapest that gets it right the first time
 
-Not reasons:
-- "It's a big task." Size alone doesn't decide this; coupled work belongs in one context.
-- Anything you could do in about five tool calls.
-- Writing a plan or code for another model to copy.
-- Work that touches the same files as another stream.
+Pick the lowest rung that will do the job correctly in one pass. A failed
+attempt plus rework costs more than starting one rung higher.
 
-When you delegate:
-- Give the intent, acceptance criteria, files, constraints and how to verify,
-  as paths and facts. Don't paste file contents.
-- Read what comes back critically, and check its diff yourself. A subagent's
-  "done" is a claim, not evidence.
-- Name each delegation and its reason in the final report.
+| Rung | Use for |
+|---|---|
+| **inline** (you, no subagent) | you already know the exact edit and it's about 3 tool calls or fewer: a colour, a font size, a string, a one-line fix in a file you've read. Starting a subagent costs more than the edit |
+| `implementer` · `haiku` · `low` | mechanical work on a pattern the repo already shows: renames, translation keys, boilerplate, a test shaped like its neighbours, moving code without changing it |
+| `implementer` · `haiku` · `medium` | the same, across several files, or with small choices (which existing helper fits) |
+| `implementer` · `sonnet` · `low` | a clear, well-specified change in one area that needs reading the surrounding code |
+| `implementer` · `sonnet` · `medium` | the default for real feature and bug work: several files, decisions within a clear brief, new tests |
+| `implementer` · `opus` · `medium` | only a slice that needs judgement a brief can't pin down (intricate state, concurrency, a tricky algorithm), after the plan has narrowed it |
 
-Always pass `model` explicitly in the Agent call, and `effort` where the table
-gives one. A subagent with no `model` inherits this session's model, which may
-be above the ceiling.
+Other agents:
 
-Ceiling: never `fable`, never effort `xhigh` or `max`, never Sonnet above
-`medium`. Keeping to it is your job. When Claude Code loads sharaqi as a
-plugin (marketplace install, or a skills folder with `.claude-plugin/`),
-`hooks/cap-model.sh` also blocks Agent calls that state a value above it, but
-it can't see a model that is inherited or set in an agent's own file.
+| Job | Agent · model · effort |
+|---|---|
+| Broad search: many files or naming conventions, and you only need the conclusion | `Explore` · `haiku` · `low`; `sonnet` · `medium` when the search needs judgement |
+| A plan that is genuinely hard (open design across modules, migration strategy) and you'd otherwise guess | `Plan` · `opus` · `high`. The only use of `high` outside a CRITICAL review. Say why |
+| Independent review | `reviewer`, model and effort from review.md |
+
+Diagnosis stays with you: when a bug's cause is unclear, find the cause
+first (delegate the broad search if there is one), then delegate the fix with
+the cause in `<facts>`.
+
+## Ceiling — never crossed
+
+- Never `fable`, in any call, for any reason.
+- Never above `opus` · `high`. `high` only for `Plan` as above, or the
+  CRITICAL reviewer case in review.md.
+- `sonnet` and `haiku` never above `medium`.
+- Every Agent call names `model` and `effort`. A call without `model`
+  inherits this session's model. While `/sharaqi` is active, a hook blocks it.
+
+## Announce every delegation
+
+Before each Agent call, one line:
+
+```
+▶ <agent> · <model> · effort <effort> — <why this rung>
+```
+
+When it returns, one line:
+
+```
+◀ <agent> · <model> · effort <effort> — <DONE|PARTIAL|BLOCKED>, <what it changed or found>
+```
+
+Rework (`SendMessage` to the same agent) gets its own `▶` line, marked
+`rework`. Every delegation appears in the final report.
+
+## Escalation
+
+- Implementer returns `BLOCKED` on a wrong premise: fix the brief and resend.
+- Wrong or incomplete work: send a delta to the same agent, at most twice.
+  Still wrong: if the remaining fix is small, do it inline; otherwise start a
+  new implementer one rung higher with a corrected brief. Never retry the
+  same rung a third time.
+- Never raise a rung above the ceiling to get past a failure. Ask the user.
+
+## Several slices
+
+- Run slices **one at a time** in dependency order, and check each before the
+  next. A later brief can then rely on what the earlier one landed.
+- Run slices in parallel (several Agent calls in one message) only when they
+  touch disjoint files and none needs another's result. Run the checks once,
+  after all of them return.
+- More than three slices: keep a short progress file in the session's scratch
+  or temp directory (outside the repo): each slice, its agent and rung, its
+  status, what you verified. Update it as each slice lands.
+- After the last slice, run the checks on the whole change once more and
+  search for leftovers of what the plan changed (old names, removed calls).

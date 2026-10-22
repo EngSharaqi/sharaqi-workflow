@@ -4,13 +4,13 @@
     "name": "Mohamed A. Sharaqi"
   },
   "metadata": {
-    "description": "The sharaqi workflow: main-session execution with risk-scaled verification and review."
+    "description": "The sharaqi workflow: Opus orchestrates, cheaper models implement, with risk-scaled verification and review."
   },
   "plugins": [
     {
       "name": "sharaqi",
       "source": "./",
-      "description": "/sharaqi do <task>: the main session does the work; risk is assessed before editing and again on the diff (FAST / STANDARD / CRITICAL), checks and independent review scale with that risk, and the report states only what was actually verified."
+      "description": "/sharaqi do <task>: Opus orchestrates and plans only when needed; the cheapest model that gets it right (Haiku or Sonnet, effort at most medium) implements; checks and review scale with the risk, and the report states only what was actually verified."
     }
   ]
 }

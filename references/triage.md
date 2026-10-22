@@ -4,6 +4,10 @@ Assess before editing (step 2) from what the task asks and what you've read so
 far. Reassess on the actual diff (step 5): a new risk factor raises the mode,
 nothing lowers it.
 
+The mode is about risk. Who implements is a separate choice
+(delegation.md): a CRITICAL one-line permission fix can be done inline, and a
+FAST 40-file rename can go to `haiku`.
+
 Size is a signal, not the measure. A one-line change to a permission check is
 CRITICAL. A 300-line rename with full test coverage can be FAST.
 
