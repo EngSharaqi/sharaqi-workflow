@@ -68,10 +68,13 @@ claude plugin install sharaqi@sharaqi-workflow
 
 Start a new session afterwards.
 
-The two installs differ. Claude Code loads the hooks in `hooks/` only for a
-plugin. Installed as a skill, sharaqi runs without them, and the model ceiling
-is followed only as an instruction. Installed as a plugin, the hooks apply to
-every session, not only `/sharaqi` runs.
+The hooks in `hooks/` and the `reviewer` agent load only when Claude Code
+loads the folder as a plugin. Both installs above do that on current Claude
+Code: the skills-folder clone contains `.claude-plugin/plugin.json`, so it is
+listed as `sharaqi@skills-dir` under `claude plugin list`. Check that list. If
+sharaqi isn't in it, the hooks aren't running and the model ceiling is only an
+instruction. When they do load, the hooks apply to every session, not only to
+`/sharaqi` runs.
 
 Python 3 is needed only for the token report. Without it, the report says
 `unavailable`.
@@ -99,8 +102,8 @@ Skip setup if you're just trying sharaqi out. Everything else works without it.
 | `references/delegation.md` | when a subagent is worth its cost |
 | `references/setup.md` | `/sharaqi setup` |
 | `agents/reviewer.md` | reviewer with Read/Grep/Glob only: spec · quality · security, returns findings |
-| `hooks/cap-model.sh` | plugin only: blocks Agent calls that ask for a model above Opus/high, or Sonnet above medium |
-| `hooks/session-hints.sh` | plugin only: suggests a fresh session after repeated compactions |
+| `hooks/cap-model.sh` | when loaded as a plugin: blocks Agent calls that ask for a model above Opus/high, or Sonnet above medium |
+| `hooks/session-hints.sh` | when loaded as a plugin: suggests a fresh session after repeated compactions |
 | `scripts/tokens.py` | token usage from the local transcript, priced at API list rates |
 | `tests/` | tests for the hooks and `tokens.py` |
 | `CHANGELOG.md` | what changed per version |
@@ -125,7 +128,7 @@ guessing.
 |---|---|---|
 | Reviewer can't change anything | Claude Code: the agent has no Bash, Edit or Write | none known |
 | Ask before commit / push / PR | Claude Code permission rules, if you accepted them in setup | other command forms (`git -C . push`, `sh -c`, scripts) aren't matched; use the sandbox network allowlist or branch protection for a hard guarantee |
-| Model ceiling (no Fable, no `xhigh`/`max`, Sonnet ≤ medium) | `cap-model.sh`, plugin installs only | can't see a model that is inherited or set in an agent file; the skill tells the model to always pass `model` explicitly |
+| Model ceiling (no Fable, no `xhigh`/`max`, Sonnet ≤ medium) | `cap-model.sh`, when loaded as a plugin | can't see a model that is inherited or set in an agent file; the skill tells the model to always pass `model` explicitly |
 | Nothing leaves the machine (publish, email, tickets) | instruction only | the model can still do it |
 | No claimed checks without a run; secrets by location only | instruction only | — |
 

@@ -31,7 +31,7 @@ gives one. A subagent with no `model` inherits this session's model, which may
 be above the ceiling.
 
 Ceiling: never `fable`, never effort `xhigh` or `max`, never Sonnet above
-`medium`. Keeping to it is your job. When sharaqi is installed as a plugin,
+`medium`. Keeping to it is your job. When Claude Code loads sharaqi as a
+plugin (marketplace install, or a skills folder with `.claude-plugin/`),
 `hooks/cap-model.sh` also blocks Agent calls that state a value above it, but
-it can't see a model that is inherited or set in an agent's own file. When it
-is installed as a plain skill, no hook runs at all.
+it can't see a model that is inherited or set in an agent's own file.
