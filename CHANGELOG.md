@@ -33,7 +33,7 @@ cost about 8× more and took about 20× longer than doing the same task directly
   - It never blocks a prompt.
 - `hooks/cap-model.sh` also matches pretty-printed JSON. Its comments and the
   docs now state what it can't see: inherited models, models set in an agent
-  file, and installs as a plain skill, where no hook runs.
+  file, and setups where Claude Code doesn't load the folder as a plugin.
 - Stack-specific wording made general: issue tracker instead of Azure DevOps,
   and XSS sinks listed per framework.
 

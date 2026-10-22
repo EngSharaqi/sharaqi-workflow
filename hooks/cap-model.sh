@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Blocks any subagent spawn above Opus 5.5 at high effort, and Sonnet above medium.
-# Runs only when sharaqi is installed as a plugin, and then for every Agent call in
-# every session, not only /sharaqi runs.
+# Runs only when Claude Code loads sharaqi as a plugin (marketplace, or a skills folder
+# with .claude-plugin/), and then for every Agent call in every session, not only /sharaqi.
 # Limits: it checks only the model/effort written in the Agent call. A subagent that
 # inherits the session's model, or takes it from its own agent file, passes unchecked.
 # Matches top-level JSON keys only: a key inside the prompt string is escaped (\"model\"),
