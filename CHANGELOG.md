@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.6.0 — unreleased
+
+v0.6 brings delegation back. Opus orchestrates and the cheapest model that
+will get it right implements, without the v0.4 costs.
+
+### Added
+- `agents/implementer.md`: implements one brief with Read, Edit, Write, Bash,
+  Grep and Glob. It can't spawn agents, never commits, and reports
+  DONE / PARTIAL / BLOCKED with the checks it ran. Default `sonnet` · `medium`.
+- `references/brief.md`: briefs as paths and names, never code; real check
+  commands; rework as a delta to the same agent via `SendMessage`.
+- `SKILL.md` frontmatter: `model: opus`, `effort: medium`, and a
+  `PreToolUse` hook that runs `cap-model.sh --require-model` for the rest of
+  the session once `/sharaqi` runs.
+- `▶`/`◀` lines for every delegation, with agent, model and effort.
+- `tokens.py`: a per-model line under SUMMARY.
+
+### Changed
+- `references/delegation.md` is now a routing ladder: inline, haiku · low,
+  haiku · medium, sonnet · low, sonnet · medium, opus · medium. Pick the
+  cheapest that gets it right the first time. `Plan` at opus · high only for
+  a genuinely hard plan. Escalation after two failed deltas, and sequential
+  slices by default.
+- Plans are written only when the task needs one (coupled steps, several
+  designs, or CRITICAL), and never contain code.
+- `references/review.md`: checking delegated work (existing-test edits
+  first, re-run checks, implementer sweep). STANDARD reviewer is now
+  sonnet · medium; CRITICAL stays opus · medium (high for intricate diffs).
+- `hooks/cap-model.sh` also blocks Haiku above medium.
+
 ## 0.5.0 — unreleased
 
 v0.5 replaces the v0.4 pipeline. In v0.4 an Opus planner wrote cards, cheaper

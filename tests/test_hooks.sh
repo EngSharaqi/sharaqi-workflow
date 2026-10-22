@@ -23,6 +23,7 @@ check "effort max"           2 "$(cap_exit '{"tool_input":{"effort":"max"}}')"
 check "sonnet high"          2 "$(cap_exit '{"tool_input":{"model":"sonnet","effort":"high"}}')"
 check "sonnet high reversed" 2 "$(cap_exit '{"tool_input":{"effort":"high","model":"claude-sonnet-5-5"}}')"
 check "pretty-printed"       2 "$(cap_exit $'{"tool_input":{\n  "model": "fable"\n}}')"
+check "haiku high"           2 "$(cap_exit '{"tool_input":{"model":"haiku","effort":"high"}}')"
 
 # --- cap-model.sh: allowed
 check "opus high"            0 "$(cap_exit '{"tool_input":{"model":"opus","effort":"high"}}')"
@@ -30,8 +31,16 @@ check "sonnet medium"        0 "$(cap_exit '{"tool_input":{"model":"sonnet","eff
 check "haiku no effort"      0 "$(cap_exit '{"tool_input":{"model":"haiku"}}')"
 check "keys inside prompt"   0 "$(cap_exit '{"tool_input":{"model":"opus","prompt":"use {\"model\": \"fable\", \"effort\": \"max\"}"}}')"
 check "opt-out"              0 "$(printf '%s' '{"tool_input":{"model":"fable"}}' | SHARAQI_ALLOW_ABOVE_CAP=1 bash "$cap" >/dev/null 2>&1; echo $?)"
-# Known gap, documented: no model in the call -> nothing to check.
+# Known gap, documented: no model in the call -> nothing to check, unless --require-model.
 check "no model (known gap)" 0 "$(cap_exit '{"tool_input":{"subagent_type":"general-purpose"}}')"
+
+# --- cap-model.sh --require-model (registered by SKILL.md while /sharaqi is active)
+req_exit() { printf '%s' "$1" | env -u SHARAQI_ALLOW_ABOVE_CAP bash "$cap" --require-model >/dev/null 2>&1; echo $?; }
+check "require: no model"         2 "$(req_exit '{"tool_input":{"subagent_type":"implementer","prompt":"x"}}')"
+check "require: model in prompt"  2 "$(req_exit '{"tool_input":{"prompt":"use {\"model\": \"haiku\"}"}}')"
+check "require: empty model"      2 "$(req_exit '{"tool_input":{"model":""}}')"
+check "require: haiku low"        0 "$(req_exit '{"tool_input":{"model":"haiku","effort":"low"}}')"
+check "require: still caps"       2 "$(req_exit '{"tool_input":{"model":"fable"}}')"
 
 # --- session-hints.sh
 tmp=$(mktemp -d)
