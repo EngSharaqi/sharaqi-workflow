@@ -1,7 +1,7 @@
 {
   "name": "sharaqi",
-  "version": "0.4.0",
-  "description": "/sharaqi do <task>: Opus plans at medium or high by task clarity, cheaper models build each card (Sonnet never above medium), a diff-sized reviewer checks spec, quality and security, capped at Opus 5.5 high, with a savings report against all-Opus-medium.",
+  "version": "0.5.0",
+  "description": "/sharaqi do <task>: the main session does the work; risk is assessed before editing and again on the diff (FAST / STANDARD / CRITICAL), checks and independent review scale with that risk, and the report states only what was actually verified.",
   "author": {
     "name": "Mohamed A. Sharaqi"
   }
