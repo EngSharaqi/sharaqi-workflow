@@ -20,7 +20,7 @@ fi
 
 if printf '%s' "$input" | grep -Eiq '[{,][[:space:]]*"model"[[:space:]]*:[[:space:]]*"[^"]*sonnet[^"]*"' \
   && printf '%s' "$input" | grep -Eiq '[{,][[:space:]]*"effort"[[:space:]]*:[[:space:]]*"high"'; then
-  echo "Blocked by sharaqi: Sonnet runs at medium or lower. Use sonnet/medium, or opus/medium for a harder card." >&2
+  echo "Blocked by sharaqi: Sonnet runs at medium or lower. Use sonnet/medium, or opus/medium for harder work." >&2
   exit 2
 fi
 
