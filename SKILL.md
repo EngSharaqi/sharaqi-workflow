@@ -40,8 +40,9 @@ Skill folder: `${CLAUDE_SKILL_DIR}`
    apart. Tests, scanners and reviewers lower risk. They never prove a change
    correct or secure, so don't word it as if they did.
 4. **Nothing leaves the machine without an explicit yes, each time, for that
-   exact action:** commit, push, PR, publishing, email, writing to Azure DevOps
-   or GitHub. Prepare it; ask; don't do it.
+   exact action:** commit, push, PR, publishing, email, writing to an issue
+   tracker or code host. Prepare it; ask; don't do it. This rule is advice to
+   you; `/sharaqi setup` can add permission rules that make Claude Code ask.
 5. **Cheap context.** Don't read or search `vendor/`, `node_modules/`, build
    output, `.git/`, lockfiles or `*.min.*` unless the task names them. Read
    line ranges of large files. Pipe long command output through `| tail -40`.

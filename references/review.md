@@ -25,9 +25,10 @@ do what the new mode requires.
 ## Independent reviewer
 
 The `reviewer` agent in this skill (it appears as `sharaqi:reviewer`) is
-read-only: it reads the diff, runs read-only checks, and returns findings.
-It costs a fresh context, so use it only when it buys something the
-self-review can't.
+read-only: its only tools are Read, Grep and Glob, so it can't run commands
+or change files. It reads a diff file you write, and returns findings. It
+costs a fresh context, so use it only when it buys something the self-review
+can't.
 
 | Mode | Reviewer |
 |---|---|
@@ -39,10 +40,23 @@ Model and effort: `opus` / `medium`. Use `opus` / `high` only in CRITICAL with
 a large or intricate diff (concurrency, state machines, multi-step
 calculations, auth flows). Never above `high`.
 
-Prompt it with paths and facts, not pasted code:
+Pass `model` and `effort` explicitly in the Agent call, even though the agent
+file sets them: the plugin's cap hook can only check values it can see.
+
+First write the full diff, untracked files included, to a file outside the
+repo:
 
 ```
-Repo: <root>   Base ref: <sha>   Mode: <mode>
+d="${TMPDIR:-/tmp}/sharaqi-<session>.diff"
+git diff <base_ref> > "$d"
+git ls-files --others --exclude-standard -z | xargs -0 -I{} git diff --no-index /dev/null {} >> "$d"
+```
+
+(`git diff --no-index` exits 1 when files differ; that is expected.) Then
+prompt it with paths and facts, not pasted code:
+
+```
+Repo: <root>   Diff: <path to the diff file>   Mode: <mode>
 Task: <one line>
 Acceptance criteria: <list>
 Checks already run: <command → result>
@@ -52,9 +66,12 @@ Security checklist: <path to security-checklist.md> (CRITICAL only)
 
 Handling the result:
 - `PASS`: record it in the report.
+- `unverified` points: run the commands it names yourself if they are cheap
+  and relevant, and report the result. Otherwise list them under risks.
 - `FINDINGS`: you fix them in this session, then re-run the affected checks.
   Show the user any blocker-severity security finding before you fix it.
   Re-review only if a fix was itself non-trivial: at most once in STANDARD,
-  twice in CRITICAL. If findings are still open after that, the user decides.
+  twice in CRITICAL. Rewrite the diff file before each re-review. If findings
+  are still open after that, the user decides.
 - No verdict (empty, cut off, error): spawn it once more. If that also fails,
   report that the review did not complete. Don't count it as passed.

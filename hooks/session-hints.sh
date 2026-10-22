@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 # Session hygiene hints. Hooks cannot run /compact themselves, so this nudges the user:
-#   postcompact : count compactions for this session.
+#   postcompact : count compactions for this session; delete state older than 7 days.
 #   prompt      : 2+ compactions in this session -> one hint per new compaction to open a new session.
+# Never blocks a prompt: the hint is a systemMessage only.
 # Messages are \u-escaped JSON so no shell or console code page can mangle the Arabic.
 # State: <config>/sharaqi-state/<session>.{compacts,hinted}
+# Turn off: SHARAQI_NO_HINTS=1
+
+[ "${SHARAQI_NO_HINTS:-0}" = "1" ] && exit 0
 
 mode="$1"
 input=$(cat)
@@ -17,6 +21,7 @@ count_f="$dir/$sid.compacts"
 hint_f="$dir/$sid.hinted"
 
 if [ "$mode" = "postcompact" ]; then
+  find "$dir" -type f \( -name '*.compacts' -o -name '*.hinted' \) -mtime +7 -delete 2>/dev/null
   n=$(cat "$count_f" 2>/dev/null || echo 0)
   echo $((n + 1)) > "$count_f"
   exit 0
@@ -31,8 +36,10 @@ n=$(cat "$count_f" 2>/dev/null || echo 0)
 h=$(cat "$hint_f" 2>/dev/null || echo 0)
 if [ "$n" -ge 2 ] && [ "$h" -lt "$n" ]; then
   echo "$n" > "$hint_f"
-  printf '{"systemMessage":"%s%s%s"}\n' \
-    '\ud83c\udfbc \u0634\u0631\u0627\u0642\u064a \u0628\u064a\u0642\u0648\u0644\u0643: \u0627\u0644\u0645\u062d\u0627\u062f\u062b\u0629 \u062f\u064a \u0627\u062a\u0639\u0645\u0644\u0647\u0627 compact ' \
+  printf '{"systemMessage":"%s%s%s%s%s"}\n' \
+    'sharaqi: this session has been compacted ' \
+    "$n" \
+    ' times. A new session is cheaper: each compaction costs tokens too. (SHARAQI_NO_HINTS=1 turns this off)\n\u0634\u0631\u0627\u0642\u064a: \u0627\u0644\u0645\u062d\u0627\u062f\u062b\u0629 \u062f\u064a \u0627\u062a\u0639\u0645\u0644\u0647\u0627 compact ' \
     "$n" \
     ' \u0645\u0631\u0627\u062a. \u0627\u0644\u0623\u0641\u0636\u0644 \u062a\u0641\u062a\u062d session \u062c\u062f\u064a\u062f\u0629\u060c \u0644\u0623\u0646 \u062d\u062a\u0649 \u0627\u0644\u0640 compact \u0646\u0641\u0633\u0647 \u0628\u064a\u0633\u062a\u0647\u0644\u0643 \u062a\u0648\u0643\u0646\u0632.'
 fi

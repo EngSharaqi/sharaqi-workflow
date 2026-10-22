@@ -14,8 +14,10 @@ secure".
   server, not only hidden in the UI.
 - **Input validation:** server-side validation on every new input; no mass
   assignment of raw request data.
-- **Output / XSS:** `v-html`, `innerHTML`, `dangerouslySetInnerHTML`, `{!! !!}`
-  or unescaped values in JS or attributes carrying user data.
+- **Output / XSS:** raw-HTML output carrying user data, in whatever form the
+  stack uses (e.g. `innerHTML`, React `dangerouslySetInnerHTML`, Vue `v-html`,
+  Blade `{!! !!}`, Jinja/Django `|safe`, Rails `raw`/`html_safe`), or
+  unescaped values in JS or attributes.
 - **CSRF and sessions:** state-changing requests aren't GET and are
   protected the way the repo protects them; no auth tokens in URLs, and no
   tokens in `localStorage` where the repo uses cookies.

@@ -13,10 +13,13 @@ import glob
 import json
 import os
 import sys
-from datetime import datetime
+from datetime import date, datetime
 
 # USD per million tokens: input, cache write 5m, cache write 1h, cache read, output.
-# Source: platform.claude.com/docs/en/about-claude/pricing, checked 2026-10-22.
+# Source: platform.claude.com/docs/en/about-claude/pricing. Update PRICES_CHECKED
+# with the table; the report warns once it is older than PRICES_STALE_DAYS.
+PRICES_CHECKED = date(2026, 10, 22)
+PRICES_STALE_DAYS = 90
 PRICES = {
     "opus": (4.00, 5.00, 8.00, 0.20, 20.00),
     "sonnet": (2.00, 2.50, 4.00, 0.10, 10.00),
@@ -156,15 +159,28 @@ def main():
     print("REQUESTS: %d (subagent %d)" % (calls, sub))
     print("LIST_PRICE_USD: %.4f (API list rates; not a bill)" % usd)
     if unknown:
-        print("UNPRICED_REQUESTS: %d (model not recognised)" % unknown)
+        print("UNPRICED_REQUESTS: %d (model not recognised; not in the totals)" % unknown)
+    age = (date.today() - PRICES_CHECKED).days
+    stale = age > PRICES_STALE_DAYS
+    print("PRICES_CHECKED: %s (%d days ago%s)"
+          % (PRICES_CHECKED.isoformat(), age, "; STALE" if stale else ""))
     print()
     print("SUMMARY:")
     if a.lang == "ar":
-        print("التوكنز: %s (منها output %s) · %d طلب (%d من subagents) · بسعر الـ API `$%.2f` تقريبًا (مش فاتورة)"
-              % (m_tok(total), m_tok(out), calls, sub, usd))
+        line = ("التوكنز: %s (منها output %s) · %d طلب (%d من subagents) · بسعر الـ API `$%.2f` تقريبًا (مش فاتورة)"
+                % (m_tok(total), m_tok(out), calls, sub, usd))
+        if unknown:
+            line += " · %d طلب بنموذج مش معروف مش محسوب" % unknown
+        if stale:
+            line += " · ⚠️ جدول الأسعار آخر مراجعة له %s، ممكن يكون قديم" % PRICES_CHECKED.isoformat()
     else:
-        print("Tokens: %s (output %s) · %d requests (%d subagent) · about `$%.2f` at API list rates (not a bill)"
-              % (m_tok(total), m_tok(out), calls, sub, usd))
+        line = ("Tokens: %s (output %s) · %d requests (%d subagent) · about `$%.2f` at API list rates (not a bill)"
+                % (m_tok(total), m_tok(out), calls, sub, usd))
+        if unknown:
+            line += " · %d requests from an unrecognised model not counted" % unknown
+        if stale:
+            line += " · ⚠️ price table last checked %s, may be out of date" % PRICES_CHECKED.isoformat()
+    print(line)
     return 0
 
 

@@ -8,7 +8,7 @@ line first: `▶ <agent> · <model>/<effort> — <reason>`.
 
 | Reason | Agent | Model / effort |
 |---|---|---|
-| Broad exploration: many files, directories or naming conventions, where you only need the conclusion | `Explore` | its default |
+| Broad exploration: many files, directories or naming conventions, where you only need the conclusion | `Explore` | `haiku`; `sonnet` / `medium` when the search needs judgement |
 | Genuinely parallel workstreams: two or more independent parts that touch different files and each need substantial work | `general-purpose`, one per part | `sonnet` / `medium` for well-specified parts; `opus` / `medium` when a part needs judgement |
 | Independent review justified by risk | `reviewer` (this skill) | see review.md |
 | A specialised job a cheaper model has been shown to do as well, at lower total cost | whichever agent fits | the cheaper model |
@@ -26,5 +26,12 @@ When you delegate:
   "done" is a claim, not evidence.
 - Name each delegation and its reason in the final report.
 
+Always pass `model` explicitly in the Agent call, and `effort` where the table
+gives one. A subagent with no `model` inherits this session's model, which may
+be above the ceiling.
+
 Ceiling: never `fable`, never effort `xhigh` or `max`, never Sonnet above
-`medium`. The plugin's `cap-model.sh` hook blocks those.
+`medium`. Keeping to it is your job. When sharaqi is installed as a plugin,
+`hooks/cap-model.sh` also blocks Agent calls that state a value above it, but
+it can't see a model that is inherited or set in an agent's own file. When it
+is installed as a plain skill, no hook runs at all.
