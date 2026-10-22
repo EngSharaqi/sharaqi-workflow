@@ -1,0 +1,8 @@
+{
+  "name": "sharaqi",
+  "version": "0.3.0",
+  "description": "/sharaqi do <task>: Opus plans and reviews, cheaper models build each card, capped at Opus 5.5 high, with a token-savings report per task.",
+  "author": {
+    "name": "Mohamed A. Sharaqi"
+  }
+}

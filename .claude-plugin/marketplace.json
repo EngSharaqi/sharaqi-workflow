@@ -1,0 +1,16 @@
+{
+  "name": "sharaqi-workflow",
+  "owner": {
+    "name": "Mohamed A. Sharaqi"
+  },
+  "metadata": {
+    "description": "The sharaqi conductor: plan with Opus, build with Haiku and Sonnet, review with Opus, and see the tokens saved."
+  },
+  "plugins": [
+    {
+      "name": "sharaqi",
+      "source": "./",
+      "description": "/sharaqi do <task>: Opus plans and reviews, cheaper models build each card, capped at Opus 5.5 high, with a token-savings report per task."
+    }
+  ]
+}
