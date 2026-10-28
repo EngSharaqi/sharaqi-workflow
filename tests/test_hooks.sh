@@ -334,6 +334,13 @@ run_hint end "" >/dev/null
 check "handoff: SessionEnd removes this session's flag" none "$(flag)"
 check "handoff: SessionEnd keeps other sessions' files" yes "$([ -e "$tmp/sharaqi-state/other.handoff" ] && echo yes || echo no)"
 check "handoff: SessionEnd removes the run marker" no "$([ -e "$tmp/sharaqi-state/$sid.run" ] && echo yes || echo no)"
+# A plan waiting for /sharaqi go survives SessionEnd (claude -p, --resume), until the TTL.
+printf 'ROUTE x\n' > "$tmp/sharaqi-state/$sid.pending"
+run_hint end "" >/dev/null
+check "pending: SessionEnd keeps the waiting plan" yes "$([ -e "$tmp/sharaqi-state/$sid.pending" ] && echo yes || echo no)"
+touch -t 202001010000 "$tmp/sharaqi-state/$sid.pending"
+run_hint end "" >/dev/null
+check "pending: expired after the TTL" no "$([ -e "$tmp/sharaqi-state/$sid.pending" ] && echo yes || echo no)"
 
 # --- hooks.json wiring
 if command -v jq >/dev/null 2>&1; then

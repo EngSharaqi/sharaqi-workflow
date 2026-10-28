@@ -6,6 +6,20 @@ Sonnet runs the session; Opus comes in only on a logged escalation. From the LLM
 2026-10-28. v0.9 stays reproducible from commit `a05e49d` (`benchmarks/v1.0/prepare.sh`
 archives it).
 
+### Fixed (from the first finished-task benchmark)
+- `SessionEnd` no longer deletes `<session>.pending`, so `/sharaqi go` works after
+  `claude -p` or `--resume` (same session id). A waiting plan expires after 24 hours, like the
+  run marker; `/sharaqi go` ignores an older one.
+- "no new dependencies" (and "without adding packages", "بدون dependencies", …) no longer
+  triggers CRITICAL infra. Only the negated phrase is skipped; other triggers in the same
+  text still count.
+- The prompt hook checks for the statusline bridge when a run starts. Without one (and no
+  benchmark window), it tells the model to stop before reading anything and tells the user to
+  run `/sharaqi setup`, instead of the gate blocking the first write after the work is done.
+- A review blocked by the context gate is reported as `review: UNREVIEWED (context gate)`
+  with the command to run it in a new session: `/sharaqi review <BASE>..<AFTER>` (+ the
+  CRITICAL trigger word).
+
 ### Benchmarks
 - benchmarks/v1.0/RESULTS.md: one paid round of the three-arm routing benchmark, 33/33 runs
   completed, $5.6351 spent. On the 11 routing cases v1.0 cost $0.9183 against $2.0351 for

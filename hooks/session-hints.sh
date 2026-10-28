@@ -14,8 +14,10 @@
 #                 or no summary to check, is written to <session>.handoff; the next prompt
 #                 (not a slash command) tells the model once, as additionalContext, and the
 #                 user, as systemMessage. A new /sharaqi prompt clears it. Never blocks.
-#   end         : (SessionEnd) remove this session's run marker, handoff flag and pending
-#                 approval (scripts/classify.py). The events log stays for the run record.
+#   end         : (SessionEnd) remove this session's run marker and handoff flag. A pending
+#                 approval (scripts/classify.py) stays, so `/sharaqi go` still works after
+#                 `claude -p` or `--resume` (same session id); it expires after RUN_TTL_MIN.
+#                 The events log stays for the run record.
 # A crashed session never reaches SessionEnd. Its marker is ignored by cap-model.sh once it is
 # older than RUN_TTL_MIN (24 hours since the session's last prompt), and every event here
 # deletes markers past that age.
@@ -53,12 +55,12 @@ case "$sid" in "" | *[!A-Za-z0-9_-]*) exit 0 ;; esac
 dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/sharaqi-state"
 run_f="$dir/$sid.run"
 RUN_TTL_MIN=1440 # keep equal to cap-model.sh
-find "$dir" -type f -name '*.run' -mmin +"$RUN_TTL_MIN" -delete 2>/dev/null
+find "$dir" -type f \( -name '*.run' -o -name '*.pending' \) -mmin +"$RUN_TTL_MIN" -delete 2>/dev/null
 
 handoff_f="$dir/$sid.handoff"
 
 if [ "$mode" = "end" ]; then
-  rm -f "$run_f" "$handoff_f" "$dir/$sid.pending" 2>/dev/null
+  rm -f "$run_f" "$handoff_f" 2>/dev/null
   exit 0
 fi
 

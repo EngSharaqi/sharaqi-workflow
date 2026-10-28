@@ -29,6 +29,7 @@ ROUTES = os.path.join(ROOT, "references", "routes")
 COMMAND = re.compile(r"^\s*/sharaqi(?::sharaqi)?(?=\s|$)(.*)$", re.S)
 ENTRIES = ("do", "route", "review", "setup", "go")
 SESSION = re.compile(r"[A-Za-z0-9_-]+")
+PENDING_TTL_S = 1440 * 60  # keep equal to RUN_TTL_MIN in hooks/session-hints.sh
 
 # --- text rules. Each is (name, regex); the first match is quoted in the FACTS line.
 I = re.I
@@ -122,6 +123,13 @@ SPLIT_WRITING = re.compile(r"\s*(?:\band\b|,|;)\s*(?=(?:then\s+)?(?:write|draft|
 DOC_TARGET = re.compile(r"[\"“”]|\b(document|doc|email|report|draft|text|message|proposal|"
                         r"plan|spec)\b", I)
 DOC_PATH = re.compile(r"\.(?:md|txt|rst|adoc)$", I)
+# A constraint, not a change: "no new dependencies" must not trigger infra. Removed before the
+# CRITICAL scan only; other triggers in the same text still count.
+NEGATED = re.compile(r"\b(?:no|without(?: adding)?|(?:don'?t|do not|never) add|avoid(?: adding)?|"
+                     r"zero)\s+(?:any\s+)?(?:new\s+|extra\s+|additional\s+|more\s+)?"
+                     r"(?:dependenc(?:y|ies)|deps|packages?|libraries)\b|"
+                     r"(?:بدون|من غير|مفيش|لا)\s+(?:أي\s+)?(?:new\s+)?(?:dependenc(?:y|ies)|deps|packages?)\b",
+                     I)
 CODE_TARGET = re.compile(r"^(?:HEAD(?:[~^]\d*)?|[0-9a-f]{7,40}|[\w./-]+\.\.\.?[\w./-]+|"
                          r"working tree|staged|origin/[\w./-]+)$|" + PATH.pattern, I)
 
@@ -176,6 +184,16 @@ class Facts:
         return " ".join(parts)
 
 
+def critical_trigger(text):
+    """(rule name, quoted match) of the first CRITICAL trigger, or None."""
+    text = NEGATED.sub(" ", text)
+    for name, rx in CRITICAL_RULES:
+        m = hit(rx, text)
+        if m:
+            return name, m
+    return None
+
+
 def classify_task(text):
     """(track, Facts, confidence) for a do/route task."""
     f = Facts()
@@ -202,12 +220,7 @@ def classify_task(text):
         track, conf = ("mixed" if hit(WRITING, writing_part) else "coding"), "high"
     t = code_part if track == "mixed" else text
 
-    trig = None
-    for name, rx in CRITICAL_RULES:
-        m = hit(rx, t)
-        if m:
-            trig = (name, m)
-            break
+    trig = critical_trigger(t)
     f.set("critical", trig[0] if trig else "none", repr(trig[1]) if trig else "no trigger word")
 
     logic, cosmetic = hit(LOGIC, t), hit(COSMETIC, t)
@@ -273,12 +286,7 @@ def classify_review(target):
         f.set("artifact", "doc", repr(is_doc))
         return f, "high"
     f.set("artifact", "code", repr(is_code) if is_code else None)
-    trig = None
-    for name, rx in CRITICAL_RULES:
-        m = hit(rx, target)
-        if m:
-            trig = (name, m)
-            break
+    trig = critical_trigger(target)
     f.set("critical", trig[0] if trig else "none",
           repr(trig[1]) if trig else "none in the target text; judge the diff's paths")
     return f, "high" if is_code else "low"
@@ -353,6 +361,39 @@ def state_dir():
     return os.path.join(root, "sharaqi-state")
 
 
+def gate_unverifiable(sid, cwd):
+    """True when hooks/context-gate.sh will block every write in this run because it can't
+    verify the window: no bridge file for the session, no statusLine running
+    statusline-bridge.sh in the settings read here, and no benchmark window declared."""
+    if os.environ.get("SHARAQI_BENCHMARK") == "1" and os.environ.get("SHARAQI_CONTEXT_WINDOW"):
+        return False
+    if sid and os.path.isfile(os.path.join(state_dir(), sid + ".ctx")):
+        return False
+    root = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude")
+    files = [os.path.join(root, "settings.json")]
+    if isinstance(cwd, str) and cwd:
+        files += [os.path.join(cwd, ".claude", n) for n in ("settings.json", "settings.local.json")]
+    for path in files:
+        try:
+            with open(path, encoding="utf-8") as fh:
+                d = json.load(fh)
+        except (OSError, ValueError):
+            continue
+        sl = d.get("statusLine") if isinstance(d, dict) else None
+        cmd = sl.get("command") if isinstance(sl, dict) else None
+        if isinstance(cmd, str) and "statusline-bridge" in cmd:
+            return False
+    return True
+
+
+GATE_STOP = ("CONTEXT GATE UNVERIFIABLE: no statusline bridge in this session, so the context "
+             "gate will block every Edit, Write and Agent call in this run. Read nothing and run "
+             "nothing: tell the user to run `/sharaqi setup` (statusline bridge), then resend "
+             "this prompt. Never work around the gate.")
+GATE_MSG = ("sharaqi: the context gate can't verify this session (no statusline bridge), so "
+            "edits would be blocked. Run /sharaqi setup first, then resend the prompt.")
+
+
 def log_event(sid, ev):
     """Append one JSON line to <state>/<session>.events.jsonl. Never raises."""
     if not sid or not SESSION.fullmatch(sid):
@@ -397,8 +438,9 @@ def hook_main(raw):
     debug = debug or os.environ.get("SHARAQI_DEBUG") == "1"
     if entry == "go":
         try:
+            fresh = time.time() - os.path.getmtime(pending) < PENDING_TTL_S
             with open(pending, encoding="utf-8") as fh:
-                saved = fh.read().strip()
+                saved = fh.read().strip() if fresh else ""
             os.remove(pending)
         except (OSError, TypeError):
             saved = ""
@@ -410,8 +452,7 @@ def hook_main(raw):
             ctx = (f"SHARAQI v{VERSION} · entry=go · the user approved the plan for:\n{saved}\n"
                    + (args and f"User's notes on the approval: {args}\n" or "")
                    + "Continue from Implement, under the same ROUTE and BASE.")
-        return {"hookSpecificOutput": {"hookEventName": "UserPromptSubmit",
-                                       "additionalContext": ctx}}
+        return gated(sid, d.get("cwd"), ctx, saved and "track=ops" not in saved)
     try:
         ctx, ev = build(entry, args, debug, d.get("cwd"))
     except Exception as e:  # noqa: BLE001 - any failure must reach the model as such
@@ -431,8 +472,18 @@ def hook_main(raw):
                 fh.write("\n".join([route] + base) + "\n")
         except OSError:
             pass
-    return {"hookSpecificOutput": {"hookEventName": "UserPromptSubmit",
-                                   "additionalContext": ctx}}
+    return gated(sid, d.get("cwd"), ctx, entry in ("do", "review") and route.startswith("ROUTE ")
+                 and "track=ops" not in route)
+
+
+def gated(sid, cwd, ctx, writes):
+    """The hook output, led by GATE_STOP when this run would write and the gate can't verify."""
+    out = {"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": ctx}}
+    if writes and gate_unverifiable(sid, cwd):
+        log_event(sid, {"event": "gate-preflight", "decision": "stop"})
+        out["hookSpecificOutput"]["additionalContext"] = GATE_STOP + "\n" + ctx
+        out["systemMessage"] = GATE_MSG
+    return out
 
 
 def main(argv):

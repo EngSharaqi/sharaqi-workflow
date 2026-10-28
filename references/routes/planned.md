@@ -13,7 +13,10 @@
 5. Diff not empty: the ROUTE's reviewer gets that diff only. Confirmed findings: repair
    (inline when ≤ 2 edits), re-run the checks, re-review the repair diff; at most two repairs.
    Checks still failing after two: re-route with `--failed 2` (Opus implements).
+   Reviewer call blocked by the context gate: don't retry or work around it; report
+   `review: UNREVIEWED (context gate)` and, under Waiting for you, the command for a new
+   session: `/sharaqi review <BASE>..<AFTER>` (+ the CRITICAL trigger word, if any).
 6. Report:
 **Changed:** <file — what> · **Checks:** <command → result as observed>
-**Route:** <ROUTE> · review: PASS | FINDINGS open <n> · escalations: none | <trigger → model>
+**Route:** <ROUTE> · review: PASS | FINDINGS open <n> | UNREVIEWED · escalations: none | <trigger → model>
 **Risks:** <unverified or assumed, or "none identified"> · **Waiting for you:** <commit/push, if any>

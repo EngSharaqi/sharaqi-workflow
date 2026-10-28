@@ -55,6 +55,9 @@ the arguments.
 | Delegation lines and token receipt | always printed | **`--debug` only** |
 | Run accounting | per benchmark | **`scripts/runrecord.py`**: one JSON record per run |
 | Headless runs | context gate blocked every Agent call | benchmark mode declares the window |
+| No statusline bridge | the gate blocked the first write, after the work was read and planned | **checked when the run starts**: the model stops before reading, you're told to run `/sharaqi setup` |
+| Review blocked by the gate | not reported | **`review: UNREVIEWED (context gate)`** plus the `/sharaqi review` command for a new session |
+| `/sharaqi go` after `claude -p` or `--resume` | the plan was deleted at `SessionEnd` | **the plan waits up to 24 hours** |
 
 Design notes and how each change was verified:
 [docs/architecture.md § v1.0](docs/architecture.md#v10-experimental-sonnet-seat-opus-on-escalation).
@@ -121,7 +124,9 @@ flowchart TD
 CRITICAL triggers: auth, permissions, secrets; data migration or deletion; anything
 irreversible; real-money side effects; security-sensitive parsing; shared infrastructure
 (build, CI, deploy, dependencies). Blast radius, not domain words: fixing cart-total math is
-planned; charging a card is critical. A mixed task routes only its code part. Borderline
+planned; charging a card is critical. A constraint isn't a trigger: "no new dependencies"
+(or "without adding packages", "بدون dependencies") is skipped; other triggers in the same
+text still count. A mixed task routes only its code part. Borderline
 cases: [references/triage.md](references/triage.md).
 
 ## Delegation ladder
@@ -145,7 +150,7 @@ cases: [references/triage.md](references/triage.md).
 | Opus only on escalation | `hooks/agent-audit.sh`: an Opus Agent call without `escalate:<critical\|failed-twice\|reasoning>` is blocked; every call is logged | active only during a `/sharaqi` run |
 | Foreground agents only | `agent-audit.sh` requires `run_in_background: false` (a background result returns on the session's model) | same |
 | Model ceiling; every Agent call names a model | `hooks/cap-model.sh` during a run | without jq or Python it blocks only what it reads clearly |
-| Context gate (warn 35%, block 40%) | `hooks/context-gate.sh` on Agent, Edit, Write | fails closed when the window can't be verified; install the statusline bridge (`/sharaqi setup`) |
+| Context gate (warn 35%, block 40%) | `hooks/context-gate.sh` on Agent, Edit, Write; the prompt hook checks for the statusline bridge when a run starts | fails closed when the window can't be verified; install the statusline bridge (`/sharaqi setup`). A review it blocks is reported `UNREVIEWED`, with the command to run it in a new session |
 | Reviewer can't change anything | the agent has only Read, Grep, Glob | none known |
 | Session on Sonnet · medium | `model` / `effort` in SKILL.md | the `/sharaqi` turn only: approve with `/sharaqi go`, not "yes" |
 | Ask before commit / push / PR | Claude Code permission rules, if you accept them in `/sharaqi setup` | other command forms aren't matched; use branch protection for a hard guarantee |
@@ -197,9 +202,14 @@ requires was then blocked by the context gate at 43.7% of the declared 200k wind
 finished without an independent review, and that review's cost isn't in the figure. One run
 per arm, run concurrently. Design quality wasn't scored.
 
-Found on the way: `SessionEnd` deletes `<session>.pending`, so `/sharaqi go` sent as a new
-`claude -p` call (or after `--resume`) finds no plan. A first attempt that way cost $1.06
+Found on the way: `SessionEnd` deleted `<session>.pending`, so `/sharaqi go` sent as a new
+`claude -p` call (or after `--resume`) found no plan. A first attempt that way cost $1.06
 and changed nothing; the numbers above use one live process instead.
+
+Fixed since this run (CHANGELOG, "Fixed"): the plan now survives `SessionEnd`; "no new
+dependencies" no longer triggers CRITICAL; a missing statusline bridge is caught when the
+run starts; a review the gate blocks is reported `UNREVIEWED` with the command to run it.
+The figures above were measured before these fixes and haven't been re-run.
 
 **Earlier, Opus seat (v0.6–v0.7.1):** on a tiny task and a pre-registered medium task,
 plain Claude Code was cheaper and faster, and equally correct on the medium task (median
@@ -259,7 +269,8 @@ Claude Code's own cost on a recorded session; other lines are marked as estimate
 **When the hooks are active.** Plugin hooks load in every session, but they act only after
 a prompt in that session starts with `/sharaqi` or `/sharaqi:sharaqi`. That writes a marker
 in `~/.claude/sharaqi-state/`, removed at `SessionEnd`; a marker idle for 24 hours is
-ignored and deleted. `SHARAQI_NO_HINTS=1` turns off the compaction hint;
+ignored and deleted. A plan waiting for `/sharaqi go` is kept at `SessionEnd` (so it works
+after `claude -p` or `--resume`) and deleted after 24 hours. `SHARAQI_NO_HINTS=1` turns off the compaction hint;
 `SHARAQI_ALLOW_ABOVE_CAP=1` disables the ceiling for a session.
 
 ## Security and privacy
@@ -286,7 +297,9 @@ vulnerability: [SECURITY.md](SECURITY.md).
 | Plugin not listed | `claude plugin marketplace list` should show `sharaqi-workflow`; re-run the install commands, then start a new session |
 | `/sharaqi` not found | as a plugin, the command is `/sharaqi:sharaqi` |
 | `ROUTE UNAVAILABLE` | the prompt hook couldn't run Python: install `python3` or set `SHARAQI_PYTHON` |
-| Agent calls blocked: context unverified | install the statusline bridge with `/sharaqi setup` |
+| Agent calls blocked: context unverified, or `CONTEXT GATE UNVERIFIABLE` at the start of a run | install the statusline bridge with `/sharaqi setup`, then resend the prompt; in a headless benchmark set `SHARAQI_BENCHMARK=1` and `SHARAQI_CONTEXT_WINDOW` to the model's real window |
+| `review: UNREVIEWED (context gate)` | open a new session and run the `/sharaqi review <BASE>..<AFTER>` command from the report |
+| `/sharaqi go`: no plan is waiting | the plan is used once and kept 24 hours; a plain reply ("yes") also clears it |
 | Opus call blocked | the description must start `escalate:critical`, `escalate:failed-twice` or `escalate:reasoning` |
 | Follow-up ran on Opus | approve plans with `/sharaqi go`; a plain reply runs on the session's model |
 | Hooks not firing | look for `~/.claude/sharaqi-state/<session>.run`; `claude --debug` shows hook output |

@@ -15,6 +15,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -63,6 +64,12 @@ OTHER = [
     ("commit the changes", dict(track="ops", op="commit", authz="explicit-yes")),
     ("run the tests", dict(track="ops", op="test")),
     ("Add pagination to the users list", dict(tier="planned", approval="yes")),
+    # A constraint, not a change (v1.0 benchmark: "no new dependencies" routed critical).
+    ("Update the landing page in page.js to the new layout, no new dependencies",
+     dict(tier="planned")),
+    ("Add a sidebar to the docs page without adding any new packages", dict(tier="planned")),
+    ("Remove the dependency on moment, no new dependencies", dict(tier="critical")),
+    ("Fix the login form, no new dependencies", dict(tier="critical", escalate="critical")),
 ]
 
 
@@ -173,6 +180,13 @@ class Hook(unittest.TestCase):
             fh.write("x\n")
         g("add", "a.txt")
         g("-c", "user.email=t@example.invalid", "-c", "user.name=t", "commit", "-qm", "c")
+        self.set_bridge(True)
+
+    def set_bridge(self, on):
+        path = os.path.join(self.tmp.name, "settings.json")
+        cmd = 'bash "/p/hooks/statusline-bridge.sh"' if on else "my-statusline"
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump({"statusLine": {"type": "command", "command": cmd}}, fh)
 
     def tearDown(self):
         self.env.stop()
@@ -249,6 +263,38 @@ class Hook(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(self.tmp.name, "evil.events.jsonl")))
         state = os.path.join(self.tmp.name, "sharaqi-state")
         self.assertFalse(os.path.isdir(state) and os.listdir(state))
+
+    def test_go_after_session_end_finds_the_plan(self):
+        # claude -p / --resume: the same session id in a new process; SessionEnd keeps .pending.
+        self.hook("/sharaqi do " + case_text("2"))
+        self.assertIn("the user approved the plan", self.ctx(self.hook("/sharaqi go")))
+
+    def test_go_ignores_an_expired_plan(self):
+        self.hook("/sharaqi do " + case_text("2"))
+        pending = os.path.join(self.tmp.name, "sharaqi-state", "s1.pending")
+        old = time.time() - classify.PENDING_TTL_S - 60
+        os.utime(pending, (old, old))
+        self.assertIn("no plan is waiting", self.ctx(self.hook("/sharaqi go")))
+
+    def test_gate_preflight_stops_before_any_work(self):
+        self.set_bridge(False)
+        out = self.hook("/sharaqi do " + case_text("2"))
+        self.assertTrue(self.ctx(out).startswith("CONTEXT GATE UNVERIFIABLE"))
+        self.assertIn("/sharaqi setup", out["systemMessage"])
+        self.assertIn("ROUTE ", self.ctx(out), "the route is still there for the record")
+        self.assertIn("CONTEXT GATE", self.ctx(self.hook("/sharaqi go")))
+        self.assertNotIn("systemMessage", self.hook("/sharaqi route " + case_text("2")))
+        self.assertNotIn("systemMessage", self.hook("/sharaqi do commit the changes"))
+
+    def test_gate_preflight_passes_with_a_bridge_file_or_benchmark_window(self):
+        self.set_bridge(False)
+        state = os.path.join(self.tmp.name, "sharaqi-state")
+        os.makedirs(state, exist_ok=True)
+        open(os.path.join(state, "s1.ctx"), "w").close()
+        self.assertNotIn("systemMessage", self.hook("/sharaqi do " + case_text("2")))
+        with mock.patch.dict(os.environ, {"SHARAQI_BENCHMARK": "1",
+                                          "SHARAQI_CONTEXT_WINDOW": "1000000"}):
+            self.assertNotIn("systemMessage", self.hook("/sharaqi do " + case_text("2"), sid="s2"))
 
     def test_no_case_task_asks(self):
         c = self.ctx(self.hook("/sharaqi do"))
