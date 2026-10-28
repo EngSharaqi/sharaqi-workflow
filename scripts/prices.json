@@ -1,0 +1,108 @@
+{
+  "checked": "2026-10-22",
+  "stale_after_days": 90,
+  "units": "USD per million tokens, Anthropic API list rates",
+  "match": "a transcript model id matches a key exactly, or the key plus a -YYYYMMDD date suffix; anything else is reported as unpriced",
+  "verified": "true: the row reproduced Claude Code's own costUSD for this model on a recorded session; the source names the rates that session exercised. false: the rates come from published docs only, and reports mark that model's lines as an estimate",
+  "models": {
+    "claude-opus-5-5": {
+      "input": 4.0,
+      "cache_write_5m": 5.0,
+      "cache_write_1h": 8.0,
+      "cache_read": 0.2,
+      "output": 20.0,
+      "verified": false,
+      "source": "docs: input, output, cache read; cache writes at the standard 1.25x / 2x of input. Not checked against Claude Code"
+    },
+    "claude-opus-5": {
+      "input": 5.0,
+      "cache_write_5m": 6.25,
+      "cache_write_1h": 10.0,
+      "cache_read": 0.5,
+      "output": 25.0,
+      "verified": true,
+      "source": "reproduces Claude Code's costUSD on a recorded session (tests/fixtures, 2026-10-22): input, 5m and 1h cache writes, cache read, output"
+    },
+    "claude-sonnet-5-5": {
+      "input": 2.0,
+      "cache_write_5m": 2.5,
+      "cache_write_1h": 4.0,
+      "cache_read": 0.2,
+      "output": 10.0,
+      "verified": false,
+      "source": "docs: input, output, cache read; same rates as claude-sonnet-5. Not checked against Claude Code"
+    },
+    "claude-sonnet-5": {
+      "input": 2.0,
+      "cache_write_5m": 2.5,
+      "cache_write_1h": 4.0,
+      "cache_read": 0.2,
+      "output": 10.0,
+      "verified": true,
+      "source": "reproduces Claude Code's costUSD on a recorded session (tests/fixtures, 2026-10-22): input, 5m cache write, cache read, output; the 1h write rate is the standard 2x input, not exercised"
+    },
+    "claude-haiku-5-5": {
+      "input": 0.1,
+      "cache_write_5m": 0.125,
+      "cache_write_1h": 0.2,
+      "cache_read": 0.01,
+      "output": 0.5,
+      "long_context": {
+        "over_prompt_tokens": 100000,
+        "input": 0.5,
+        "cache_write_5m": 0.625,
+        "cache_write_1h": 1.0,
+        "cache_read": 0.05,
+        "output": 2.5
+      },
+      "verified": false,
+      "source": "docs: input and output per tier; cache at the standard 1.25x / 2x / 0.1x of input. Not checked against Claude Code"
+    },
+    "claude-haiku-4-5": {
+      "input": 1.0,
+      "cache_write_5m": 1.25,
+      "cache_write_1h": 2.0,
+      "cache_read": 0.1,
+      "output": 5.0,
+      "verified": true,
+      "source": "reproduces Claude Code's costUSD on a recorded session (2026-10-22): input and output only; cache rates at the standard 1.25x / 2x / 0.1x of input, not exercised"
+    },
+    "claude-fable-5-1": {
+      "input": 10.0,
+      "cache_write_5m": 12.5,
+      "cache_write_1h": 20.0,
+      "cache_read": 0.25,
+      "output": 50.0,
+      "verified": false,
+      "source": "docs: input, output, cache read; cache writes at the standard 1.25x / 2x of input. Not checked against Claude Code"
+    },
+    "claude-mythos-5-1": {
+      "input": 10.0,
+      "cache_write_5m": 12.5,
+      "cache_write_1h": 20.0,
+      "cache_read": 0.25,
+      "output": 50.0,
+      "verified": false,
+      "source": "docs: same pricing as claude-fable-5-1. Not checked against Claude Code"
+    }
+  },
+  "ceiling": {
+    "blocked_models": [
+      "fable",
+      "mythos"
+    ],
+    "max_effort": {
+      "opus": "high",
+      "sonnet": "high",
+      "haiku": "high",
+      "other": "high"
+    },
+    "note": "Read by hooks/cap-model.sh (its DEFAULT_CEILING copy is kept equal by a test). Effort per call is the Agent call's effort if it has one, else the effort: of the named sharaqi agent file."
+  },
+  "context": {
+    "max_pct": 40,
+    "warn_pct": 35,
+    "fallback_window": 200000,
+    "note": "Read by scripts/tokens.py --context, which hooks/context-gate.sh runs. The window is verified only from the statusline bridge file; fallback_window only labels an estimate."
+  }
+}

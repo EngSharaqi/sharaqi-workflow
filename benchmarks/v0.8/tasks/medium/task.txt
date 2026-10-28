@@ -1,0 +1,17 @@
+This repo is a small habit-tracker library (source in src/, tests in test/, run with npm test). Add weekly habits:
+
+1. createHabit takes an optional `frequency`: 'daily' (the default when not given) or 'weekly'. Any other value throws a clear error. The habit object stores it as `frequency`.
+
+2. Weeks are ISO weeks, Monday to Sunday. For a weekly habit:
+   - currentStreak counts consecutive weeks with at least one check-in, ending with the week that contains `today`, or with the week before it when this week has no check-in yet.
+   - longestStreak is the longest run of consecutive weeks with at least one check-in.
+   - completionRate is the share of weeks with at least one check-in, counting every week that contains at least one day of the range. The range still starts at the later of `from` and createdOn; rounding and the null rule are the same as for daily habits.
+   Daily habits behave exactly as they do today.
+
+3. CSV: a `frequency` column after createdOn. An empty cell means daily.
+
+4. formatHabit: weekly habits count weeks instead of days ("Run — streak 2 weeks", "Run — streak 1 week").
+
+5. filterHabits: a `frequency` option that keeps only habits with that frequency.
+
+Add tests for the new behaviour and make sure npm test passes. Do not commit.

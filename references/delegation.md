@@ -1,81 +1,129 @@
-# Delegation — who does each part, on which model and effort
+# Delegation — rungs, agent files, slices, escalation
 
-You (Opus, the orchestrator) think: size the task, diagnose, plan when needed,
-write briefs, read diffs. Cheaper models do the typing: reading files,
-editing, running checks. The many tool turns are where tokens go, and on Opus
-each turn re-reads a large context. That is what delegation saves, and only
-when the brief is short and the work is more than a few tool calls.
+You (Opus) decide, diagnose, brief and verify. Cheaper rungs read, edit and
+run checks. The card in SKILL.md step 1 picks the rung; this file says how to
+call it and when it pays.
 
-## The rule: cheapest that gets it right the first time
+## Rung → call
 
-Pick the lowest rung that will do the job correctly in one pass. A failed
-attempt plus rework costs more than starting one rung higher.
+The roles and their model and effort are `docs/model-effort-plan.md` §5; this
+table maps them to calls. Effort comes from the agent file: pick the file for
+the effort and pass the model. On Claude Code 2.1.312 the `haiku` alias
+resolves to `claude-haiku-5-5` and its effort applies (§4); on 2.1.274 it was
+Haiku 4.5 with no effort setting. What a subagent actually ran is in its
+transcript: `message.model` and `effort` on each assistant entry (2.1.311
+records both). Report those, not the table below.
 
-| Rung | Use for |
+| Role · rung | `subagent_type` | `model` | Effort (configured) |
+|---|---|---|---|
+| R2 Mechanic · `haiku-medium` | `implementer` | `haiku` | medium |
+| R3 Builder · `haiku-high` | `implementer-high` | `haiku` | high |
+| R5 Consultant · `opus-low` (a question, no implementation) | `implementer-low` | `opus` | low |
+| R4 Specialist · `sonnet-high` | `implementer-high` | `sonnet` | high |
+| R6 Expert · `opus-medium` | `implementer` | `opus` | medium |
+| R6+ · `opus-high` | `implementer-high` | `opus` | high, only with the reason in the `▶` line |
+| plan-agent (CRITICAL) | `planner` | `opus` | high (read-only) |
+| R7 Reviewer, `planned` routes that changed files; `/sharaqi review` | `reviewer` | `opus` | low |
+| R7+ Critical reviewer, `critical` routes | `reviewer-medium` | `opus` | medium |
+| R7+ for auth/secrets/parsing | `reviewer-high` | `opus` | high |
+| R8 Writer, a `direct` (non-coding) route past break-even | `implementer-low` | `haiku` | low; wording-sensitive Arabic text goes to R3 |
+| Ops `haiku-low`, an `ops` route with `delegable=yes` past break-even | `implementer-low` | `haiku` | low. Commit, push, Azure DevOps and web ops are `delegable=no`: the implementer has no git write, Web or MCP tool |
+| Ops `haiku-medium` | `implementer` | `haiku` | medium |
+| Ops `haiku-high` | `implementer-high` | `haiku` | high |
+| Ops `sonnet-high` | `implementer-high` | `sonnet` | high |
+
+Shown with the plugin prefix (`sharaqi:implementer`). Don't pass `effort`;
+if your Agent tool has the parameter and you pass it, it overrides the file
+and the hook checks it. The hook blocks a call whose model and effort (from
+the call, else the file) exceed the ceiling, for example any model with
+`effort: xhigh`. If a session refuses the planned effort (an older installed
+copy with a lower ceiling), use the next supported rung and say so in the `▶`
+line; never work around the hook.
+
+## Choosing the rung
+
+Name the role a careful engineer would pick, then apply cheapest-first: one
+rung lower when tests or another clear check will catch a miss, one higher
+when nothing checks it and the logic is non-trivial (§6 rule 13). Ladder
+(§5):
+
+```
+inline → haiku-medium (R2) → haiku-high (R3) → [opus-low (R5): knowledge only]
+       → sonnet-high (R4) → opus-medium (R6) → opus-high (R6+)
+```
+
+Never go from `haiku-high` to Sonnet at medium or below: same capability,
+five times the price. The next real rung is `sonnet-high`.
+
+| Rung | Task shapes |
 |---|---|
-| **inline** (you, no subagent) | you already know the exact edit and it's about 3 tool calls or fewer: a colour, a font size, a string, a one-line fix in a file you've read. Starting a subagent costs more than the edit |
-| `implementer` · `haiku` · `low` | mechanical work on a pattern the repo already shows: renames, translation keys, boilerplate, a test shaped like its neighbours, moving code without changing it |
-| `implementer` · `haiku` · `medium` | the same, across several files, or with small choices (which existing helper fits) |
-| `implementer` · `sonnet` · `low` | a clear, well-specified change in one area that needs reading the surrounding code |
-| `implementer` · `sonnet` · `medium` | the default for real feature and bug work: several files, decisions within a clear brief, new tests |
-| `implementer` · `opus` · `medium` | only a slice that needs judgement a brief can't pin down (intricate state, concurrency, a tricky algorithm), after the plan has narrowed it |
+| `inline` | a typo, a label, a one-line known fix, a config value: one read and one edit |
+| `haiku-medium` | rename a symbol across files; the same edit in many places; boilerplate on an existing example (stories, fixtures, translations of keys); config; scaffolding |
+| `haiku-high` | a normal feature or a bug with a known cause **when tests or a typecheck catch a miss**; tests shaped like their neighbours |
+| `opus-low` | one question that needs knowledge, not effort (which library, does this API do X); an answer, no implementation |
+| `sonnet-high` | tricky logic (dates, concurrency, state, parsing), many interacting files, an unclear failure with a bounded search space, or non-trivial logic with no tests |
+| `opus-medium` | judgement a brief can't pin down, after you narrowed it; large enough to pay for a fresh Opus context (below) |
+| `opus-high` | as above when the reasoning is long or subtle, or the change is irreversible; state why |
 
-Other agents:
+Diagnosis stays with you when the search space is unbounded: find the cause
+(delegate a broad search to `Explore` · `haiku` if needed), then brief the fix
+with the cause in `facts`.
 
-| Job | Agent · model · effort |
+## Break-even: when delegating pays
+
+`scripts/breakeven.py` computes it from `scripts/prices.json` and the usage
+of a recorded delegated session (formula in docs/architecture.md). A *work
+turn* is one read, edit or check run. With an Opus orchestrator, a delegated
+slice pays for its brief, two extra orchestrator turns, the subagent's start
+and the diff you read back once it needs more than about:
+
+| Target | Break-even, work turns (brief 400–1600 tokens) |
 |---|---|
-| Broad search: many files or naming conventions, and you only need the conclusion | `Explore` · `haiku` · `low`; `sonnet` · `medium` when the search needs judgement |
-| A plan that is genuinely hard (open design across modules, migration strategy) and you'd otherwise guess | `Plan` · `opus` · `high`. The only use of `high` outside a CRITICAL review. Say why |
-| Independent review | `reviewer`, model and effort from review.md |
+| `haiku-*` | about 3 (2.5–3.2) |
+| `sonnet-high` | about 4 (3.2–4.0) |
+| `opus-*` (fresh context) | 7 or more (6.9–8.2) |
 
-Diagnosis stays with you: when a bug's cause is unclear, find the cause
-first (delegate the broad search if there is one), then delegate the fix with
-the cause in `<facts>`.
+Heuristics derived from that, using a measured plain run (v0.7.1 medium
+benchmark: about 250 changed lines, 12 files, 32 turns, so about 2.5–3 work
+turns per file and about 8 changed lines per turn): keep it `inline` when it
+is one file and under about 30 changed lines; delegate to haiku or sonnet from
+about two files, about 30 changed lines, or any edit-test loop; an `opus-*`
+slice needs about three files or 60 lines or more, otherwise do it inline,
+which is the same model without the fixed cost. The model assumes the rung needs no
+more turns than you would; rework is not in it, which is why the rung must be
+able to get it right the first time.
 
-## Ceiling — never crossed
+## Slices
 
-- Never `fable`, in any call, for any reason.
-- Never above `opus` · `high`. `high` only for `Plan` as above, or the
-  CRITICAL reviewer case in review.md.
-- `sonnet` and `haiku` never above `medium`.
-- Every Agent call names `model` and `effort`. A call without `model`
-  inherits this session's model. While `/sharaqi` is active, a hook blocks it.
-
-## Announce every delegation
-
-Before each Agent call, one line:
-
-```
-▶ <agent> · <model> · effort <effort> — <why this rung>
-```
-
-When it returns, one line:
-
-```
-◀ <agent> · <model> · effort <effort> — <DONE|PARTIAL|BLOCKED>, <what it changed or found>
-```
-
-Rework (`SendMessage` to the same agent) gets its own `▶` line, marked
-`rework`. Every delegation appears in the final report.
+- **Independent → parallel.** Parallel slices must each pass their own checks
+  without the other slices' changes, because they run at the same time. A
+  change everything imports (a renamed field of the core type) is one slice;
+  separate modules with their own tests can be split.
+- **Disjoint files → parallel.** Slices that write disjoint files and don't
+  need each other's result go out as several Agent calls in one message. List
+  each slice's files in its brief under `Touch`; two slices never write the
+  same file.
+- **Overlapping files → one slice**, or slices in sequence when they need
+  different rungs. A second sequential slice adds a second fixed cost, so
+  merge when the smaller part is below the break-even.
+- Before sending: every path appears in at most one `Touch` list. Shared
+  files (an index that re-exports, a common test helper) go to one slice, and
+  the other briefs list them under `Leave`.
+- Run the checks once after all slices return, then search for leftovers of
+  what changed (old names, removed calls). `tokens.py --phases` prints
+  `WRITE_CONFLICTS` when two subagents edited the same file; it should be 0.
+- More than three slices: keep each one's status (agent, rung, verified) in
+  your messages, not in a file.
 
 ## Escalation
 
-- Implementer returns `BLOCKED` on a wrong premise: fix the brief and resend.
-- Wrong or incomplete work: send a delta to the same agent, at most twice.
-  Still wrong: if the remaining fix is small, do it inline; otherwise start a
-  new implementer one rung higher with a corrected brief. Never retry the
-  same rung a third time.
-- Never raise a rung above the ceiling to get past a failure. Ask the user.
-
-## Several slices
-
-- Run slices **one at a time** in dependency order, and check each before the
-  next. A later brief can then rely on what the earlier one landed.
-- Run slices in parallel (several Agent calls in one message) only when they
-  touch disjoint files and none needs another's result. Run the checks once,
-  after all of them return.
-- More than three slices: keep a short progress file in the session's scratch
-  or temp directory (outside the repo): each slice, its agent and rung, its
-  status, what you verified. Update it as each slice lands.
-- After the last slice, run the checks on the whole change once more and
-  search for leftovers of what the plan changed (old names, removed calls).
+- `BLOCKED` on a wrong premise: fix the brief, resend at the same rung.
+- Wrong or incomplete: a delta to the same agent (`SendMessage`), at most
+  twice.
+- Still wrong after two deltas: diagnose first. If it lacked effort (it
+  didn't try, skipped a step), a corrected brief at the same rung; if it
+  lacked capability (it didn't know), a new implementer exactly one rung up
+  the ladder with a corrected brief. One escalation per slice; after that, ask
+  the user. Never move down a rung mid-task; never cross the ceiling to get
+  past a failure.
+- Every delta and escalation gets a `▶` line and appears in the report.

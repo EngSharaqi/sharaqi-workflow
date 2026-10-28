@@ -1,0 +1,13 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { total, applyCoupon } from '../src/cart.js';
+const items = [{ price: 1000, qty: 2 }, { price: 500, qty: 1 }];
+test('percent 150 clamps to 0', () => assert.equal(total(items, { type: 'percent', value: 150 }), 0));
+test('percent 100 is 0', () => assert.equal(total(items, { type: 'percent', value: 100 }), 0));
+test('fixed 300', () => assert.equal(total(items, { type: 'fixed', value: 300 }), 2200));
+test('fixed larger than subtotal clamps', () => assert.equal(total(items, { type: 'fixed', value: 9999 }), 0));
+test('fixed then tax', () => assert.equal(total(items, { type: 'fixed', value: 500 }, 0.1), 2200));
+test('negative percent throws', () => assert.throws(() => applyCoupon(1000, { type: 'percent', value: -5 })));
+test('negative fixed throws', () => assert.throws(() => applyCoupon(1000, { type: 'fixed', value: -5 })));
+test('unknown type still throws', () => assert.throws(() => applyCoupon(1000, { type: 'bogus', value: 1 })));
+test('no coupon unchanged', () => assert.equal(total(items, null), 2500));

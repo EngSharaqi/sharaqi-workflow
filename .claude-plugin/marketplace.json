@@ -4,13 +4,25 @@
     "name": "Mohamed A. Sharaqi"
   },
   "metadata": {
-    "description": "The sharaqi workflow: Opus orchestrates, cheaper models implement, with risk-scaled verification and review."
+    "description": "The sharaqi workflow for Claude Code: a cost-aware router. Opus routes, the cheapest capable model and effort implements, review scales with risk, and a receipt for the tokens spent.",
+    "version": "0.9.0"
   },
   "plugins": [
     {
       "name": "sharaqi",
       "source": "./",
-      "description": "/sharaqi do <task>: Opus orchestrates and plans only when needed; the cheapest model that gets it right (Haiku or Sonnet, effort at most medium) implements; checks and review scale with the risk, and the report states only what was actually verified."
+      "description": "/sharaqi do <task>: Opus makes one cheap routing decision (plan or not, which model and effort implements, how much review), delegates to the cheapest capable rung under a hook-enforced model and effort ceiling, re-runs the checks, and reports only what it verified, with a token receipt. /sharaqi route <task> shows the decision without running it.",
+      "version": "0.9.0",
+      "homepage": "https://github.com/EngSharaqi/sharaqi-workflow",
+      "repository": "https://github.com/EngSharaqi/sharaqi-workflow",
+      "license": "MIT",
+      "keywords": [
+        "workflow",
+        "orchestration",
+        "delegation",
+        "code-review",
+        "token-usage"
+      ]
     }
   ]
 }

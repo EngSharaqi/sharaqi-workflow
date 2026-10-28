@@ -1,0 +1,12 @@
+This repo is a small reading-list library (source in src/, tests in test/, run with npm test). Two changes:
+
+1. Rename the item field `pages` to `pageCount` everywhere: the item object, every function that reads it, error messages, the CSV header column, and the tests. Also rename `totalPages` to `totalPageCount`, `averagePages` to `averagePageCount`, the `filterItems` options `minPages`/`maxPages` to `minPageCount`/`maxPageCount`, and the sort key `pages` to `pageCount`. Keep src/index.js exporting every public function under its new name.
+
+2. Add an optional `rating` field: an integer from 1 to 5. `createItem` stores it as `rating` (null when not given) and throws a clear error for any other value. Support it in:
+   - CSV import and export: a `rating` column after `year`.
+   - `formatItem`: append ` — rated N/5` when the item is rated.
+   - `filterItems`: a `minRating` option; unrated items never match it.
+   - `sortItems`: a `rating` sort key; unrated items sort last in both directions.
+   - `src/stats.js`: a new exported `averageRating(items)`, the mean rating of the rated items, rounded to one decimal. Export it from src/index.js.
+
+Add tests for the new behaviour and make sure npm test passes. Do not commit.

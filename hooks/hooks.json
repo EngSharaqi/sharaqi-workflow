@@ -6,7 +6,16 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/cap-model.sh\""
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/cap-model.sh\" --in-run --require-model"
+          }
+        ]
+      },
+      {
+        "matcher": "Agent|Task|Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/context-gate.sh\" --in-run"
           }
         ]
       }
@@ -27,6 +36,16 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session-hints.sh\" postcompact"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session-hints.sh\" end"
           }
         ]
       }

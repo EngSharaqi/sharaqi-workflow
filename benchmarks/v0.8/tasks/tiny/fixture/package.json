@@ -1,0 +1,10 @@
+{
+  "name": "textkit",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Small text helpers: slugs, truncation, word counts.",
+  "scripts": {
+    "test": "node --test \"test/**/*.test.js\""
+  }
+}

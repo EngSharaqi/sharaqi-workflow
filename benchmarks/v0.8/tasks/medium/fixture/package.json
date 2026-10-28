@@ -1,0 +1,10 @@
+{
+  "name": "habits",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A small habit tracker: habits, check-ins, streaks, stats, CSV.",
+  "scripts": {
+    "test": "node --test \"test/**/*.test.js\""
+  }
+}

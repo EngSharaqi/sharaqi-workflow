@@ -1,8 +1,21 @@
 {
   "name": "sharaqi",
-  "version": "0.6.0",
-  "description": "/sharaqi do <task>: Opus orchestrates and plans only when needed; the cheapest model that gets it right (Haiku or Sonnet, effort at most medium) implements; checks and review scale with the risk, and the report states only what was actually verified.",
+  "version": "0.9.0",
+  "description": "/sharaqi do <task>: Opus makes one cheap routing decision (plan or not, which model and effort implements, how much review), delegates to the cheapest capable rung under a hook-enforced model and effort ceiling, re-runs the checks, and reports only what it verified, with a token receipt. /sharaqi route <task> shows the decision without running it.",
   "author": {
     "name": "Mohamed A. Sharaqi"
-  }
+  },
+  "homepage": "https://github.com/EngSharaqi/sharaqi-workflow",
+  "repository": "https://github.com/EngSharaqi/sharaqi-workflow",
+  "license": "MIT",
+  "keywords": [
+    "workflow",
+    "orchestration",
+    "delegation",
+    "code-review",
+    "token-usage",
+    "cost",
+    "subagents",
+    "hooks"
+  ]
 }

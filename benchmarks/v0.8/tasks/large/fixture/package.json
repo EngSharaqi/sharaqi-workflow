@@ -1,0 +1,10 @@
+{
+  "name": "auditlog",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A small audit-event library: events, a store, queries, grouping, stats, CSV and JSON lines, retention.",
+  "scripts": {
+    "test": "node --test \"test/**/*.test.js\""
+  }
+}

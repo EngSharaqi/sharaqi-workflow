@@ -1,6 +1,6 @@
 # Setup (`/sharaqi setup`)
 
-Optional and run once. It edits Claude Code settings files, so every change
+Run once. Steps 1–3 and 5 are optional; step 4 is needed for the context gate. It edits Claude Code settings files, so every change
 needs the user's answer first. Each step can be skipped. Make every edit
 JSON-aware: keep all other keys and existing entries, and add no duplicates.
 
@@ -22,7 +22,7 @@ sooner and each turn costs less.
 
 ## 2. Ask before anything leaves the machine (global)
 
-SKILL.md rule 4 is advice to the model. Permission rules are enforced by
+SKILL.md rule 6 is advice to the model. Permission rules are enforced by
 Claude Code itself.
 
 AskUserQuestion: make Claude Code ask before commits, pushes and PRs, in every
@@ -55,3 +55,43 @@ tokens.
    per-user and not meant to be committed; if `.gitignore` doesn't already
    exclude it, tell the user rather than editing `.gitignore`. To undo, delete
    those lines.
+
+## 4. Context window source for the 40% gate (global, needed)
+
+`hooks/context-gate.sh` blocks Agent, Edit, Write and NotebookEdit in the main
+session of a sharaqi run when context is at or above 40%, **or when it can't
+verify the window size**. Hooks don't receive the window size; only Claude
+Code's statusLine command does (`context_window.context_window_size`). Without
+this step every sharaqi run is blocked at its first edit, by design.
+
+1. Read `statusLine` in `~/.claude/settings.json`. Show it, or say there is
+   none.
+2. AskUserQuestion: let sharaqi's bridge record the window size from the
+   statusline? Explain in one line: it writes one small file per session
+   under `sharaqi-state/` and passes the input on to your current statusline,
+   whose output stays the same. Options: **Yes (Recommended)** · No.
+3. On yes, set `statusLine` to
+   `{"type": "command", "command": "bash \"<plugin root>/hooks/statusline-bridge.sh\" <current command, if any>"}`.
+   It applies from the next statusline refresh.
+
+Limits to tell the user: the statusline runs only where Claude Code draws
+one; if an editor integration doesn't run it, the gate stays blocked there
+(check with `tokens.py --context`). The reading counts the context up to the
+last API call, not tool output since. Subagents' own contexts aren't
+measured. The gate's 35% warning goes to the hook's stderr, which the model
+doesn't see on an allowed call; the model sees it only from its own
+`tokens.py --context` checks (SKILL.md rule 9). Nothing runs `/compact` for
+you: the gate stops work, you compact.
+
+## 5. Auto-compact at 40% (global, optional)
+
+`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` makes Claude Code compact on its own at a
+percentage of the window less the output reserve, so at slightly under 40% of
+the full window. It is documented in Claude Code's environment variables
+(code.claude.com/docs/en/env-vars, checked 2026-10-28): 1–100, it can only
+lower the threshold, and it applies to subagents too. The gate above works
+without it.
+
+AskUserQuestion: add `"env": {"CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "40"}` to
+`~/.claude/settings.json`? Options: **No (Recommended)** · Yes. On yes, it
+applies from the next session; to undo, delete the key.

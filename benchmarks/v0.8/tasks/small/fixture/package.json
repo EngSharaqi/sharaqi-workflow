@@ -1,0 +1,10 @@
+{
+  "name": "durations",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Parse and format durations like 1h30m.",
+  "scripts": {
+    "test": "node --test \"test/**/*.test.js\""
+  }
+}

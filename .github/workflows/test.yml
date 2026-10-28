@@ -1,0 +1,26 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      # The tests need bash and python3 only; jq is used when the runner has it.
+      # Nothing here calls the network or the claude CLI.
+      - name: Hook tests
+        run: bash tests/test_hooks.sh
+      - name: Snapshot tests
+        run: bash tests/test_snapshot.sh
+      - name: tokens.py tests
+        run: python3 -m unittest discover -s tests

@@ -1,0 +1,7 @@
+This repo parses and formats durations (source in src/, tests in test/, run with npm test). Two changes:
+
+1. parseDuration in src/duration.js accepts hour and minute groups ("1h30m"). Add days (d) and seconds (s), so "2d", "90s" and "1d2h3m4s" work; the result stays in seconds. Units must appear at most once each and from largest to smallest: "1h1h" and "30m1h" must throw a clear error (today they are accepted).
+
+2. formatDuration in src/format.js must show days and seconds as well, largest first, leaving out zero parts: 93784 seconds is "1d 2h 3m 4s", 86400 is "1d", 59 is "59s". Zero stays "0m".
+
+Add tests for the new behaviour and make sure npm test passes. Do not commit.

@@ -1,0 +1,13 @@
+This repo is a small audit-event library (source in src/, tests in test/, run with npm test). Two changes:
+
+1. Rename the event field `userId` to `actorId` everywhere: the event object, validation and its error messages, every function that reads it, the CSV header column, the JSON-lines field, the formatted text (`user=alice` becomes `actor=alice`), the `countBy` key `userId` (now `actorId`), the `filterEvents` option `userId` (now `actorId`), the `sessions` output field, and the tests. Also rename `byUser` to `byActor` and `eventsPerUser` to `eventsPerActor`. Keep src/index.js exporting every public function under its new name.
+
+2. Add an optional `severity` to events: 'debug', 'info', 'warn' or 'error', ordered in that way. `createEvent` stores it as `severity`, uses 'info' when it isn't given, and throws a clear error for any other value. Support it in:
+   - `filterEvents`: a `minSeverity` option that keeps events at that severity or above. An unknown `minSeverity` throws.
+   - `countBy`: a `severity` key.
+   - `formatEvent`: warn and error events start with the upper-case severity in brackets, for example `[WARN] 2026-01-05T09:00:00Z actor=alice login`. Other events are formatted as before.
+   - CSV: a `severity` column after `at`; an empty cell means 'info'. JSON lines: a `severity` field; a missing field means 'info'.
+   - `src/stats.js`: a new exported `errorRate(events)`, the share of events whose severity is 'error', rounded to two decimals. Export it from src/index.js.
+   - `applyRetention`: debug events are also dropped once they are more than 7 days old, even when `maxAgeDays` is larger. Every event is still dropped after `maxAgeDays`.
+
+Add tests for the new behaviour and make sure npm test passes. Do not commit.
