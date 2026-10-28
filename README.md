@@ -35,10 +35,11 @@ As a plugin the command is `/sharaqi:sharaqi …`; the subcommand is the first w
 the arguments.
 
 > [!NOTE]
-> **v1.0.0-exp is experimental.** The routing step is measured (above). Finished tasks are
-> not yet measured on v1.0: on the earlier task benchmarks (v0.6–v0.7.1, Opus seat) plain
-> Claude Code was cheaper. An end-to-end v1.0 task benchmark is the next step. v0.9 stays
-> reproducible from commit `a05e49d`.
+> **v1.0.0-exp is experimental.** The routing step is measured (above). Finished tasks: one
+> run of one task so far, where v1.0 cost 50% less than plain Claude Code but skipped its
+> Opus review ([Cost and evidence](#cost-and-evidence)). On the earlier task benchmarks
+> (v0.6–v0.7.1, Opus seat) plain Claude Code was cheaper. A repeated end-to-end v1.0 task
+> benchmark is the next step. v0.9 stays reproducible from commit `a05e49d`.
 
 ## What's new in v1.0
 
@@ -171,6 +172,34 @@ What it doesn't cover: no file was edited and no plan approved, so it measures t
 step, not finished work. The two CRITICAL cases stopped before their Opus review, so that
 cost isn't in the figure. One run per cell; v1.0's classifier was written with these cases
 visible.
+
+**One finished task, v1.0 vs plain** (2026-10-28, Claude Code 2.1.312, one run per arm,
+both arms at the same time): redesign the `/skills` page of a Next.js 14 site, keeping all
+content, verified with `npm run lint` and `npm run build`. Same task text, tools,
+`acceptEdits`, $15 cap and one live `claude -p` process per arm (stream-json input). Plain
+ran with `--model opus --effort medium`; v1.0 had no model flags, `/sharaqi do <task>`,
+and `/sharaqi go` was sent whenever it waited on a plan.
+
+| | Plain Claude Code | v1.0 |
+|---|---:|---:|
+| Cost | $1.23 | **$0.61 (−50%)** |
+| Wall clock | 215 s | **149 s (−31%)** |
+| API time | 190 s | 123 s |
+| Model turns · messages sent | 12 · 1 | 17 · 3 |
+| Models | Opus (Haiku < $0.01) | Sonnet only, 0 Opus calls |
+| Changed | `page.js`, `workflowEndpoint.js` (+535 −335) | `page.js` (+376 −307) |
+| Lint and build, re-run independently | pass | pass |
+| Every content field still rendered | yes | yes |
+
+What it doesn't cover: the hook routed the task `critical`, from the word "dependencies" in
+"no new dependencies". The session called it a false trigger. The Opus review the route
+requires was then blocked by the context gate at 43.7% of the declared 200k window, so v1.0
+finished without an independent review, and that review's cost isn't in the figure. One run
+per arm, run concurrently. Design quality wasn't scored.
+
+Found on the way: `SessionEnd` deletes `<session>.pending`, so `/sharaqi go` sent as a new
+`claude -p` call (or after `--resume`) finds no plan. A first attempt that way cost $1.06
+and changed nothing; the numbers above use one live process instead.
 
 **Earlier, Opus seat (v0.6–v0.7.1):** on a tiny task and a pre-registered medium task,
 plain Claude Code was cheaper and faster, and equally correct on the medium task (median
