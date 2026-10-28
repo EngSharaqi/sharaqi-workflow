@@ -188,6 +188,24 @@ across 12 files of a small Node library):
 The skill rated the task STANDARD every time and kept it inline; it never
 delegated. It spawned a Sonnet reviewer in two runs, which found nothing.
 
+**Routing decision, v0.9** (11 cases, one run each, Claude Code 2.1.312,
+`opus` → `claude-opus-5-5`, effort medium, read-only tools in both arms):
+[Sharaqi results](benchmarks/v0.9/ROUTING-RESULTS.md) ·
+[plain Claude Code results](benchmarks/v0.9/PLAIN-CODE-RESULTS.md)
+
+| | Plain | v0.9 `route` |
+|---|---|---|
+| Cost, 11 cases | $2.07 | $2.98 |
+| CLI time, median | 12.9 s | 13.5 s |
+| Explicit route | not exposed | 11/11 as expected |
+| CRITICAL cases (2) | risk flagged in the reply | `critical`: plan, approval and stronger review required |
+| Review carried out (2 cases) | 1 (document, inline) | 0 (both stopped at the context check) |
+
+Not the same work: `route` stops after the decision, while plain Claude looked
+through an empty scratch repo and asked for the files. Neither arm changed code
+or ran a full task, so this shows the cost of the routing step, not its effect
+on outcomes.
+
 **Limits.** Two tasks, small N, one model version; the plain arm alone moved
 $0.22 between two rounds of the tiny task. Delegation is unmeasured. A turn
 audit of the v0.7 run is in

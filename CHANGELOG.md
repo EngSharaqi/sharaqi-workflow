@@ -4,6 +4,16 @@
 
 Adaptive routing: plan and review where the risk is, not on every task.
 
+### Benchmarks
+- benchmarks/v0.9/ROUTING-RESULTS.md: the 11 routing cases run once each
+  through `/sharaqi route` / `review`. All 11 routes were as expected, for
+  $2.9817. Nothing was executed, and the context gate was armed but never
+  exercised.
+- benchmarks/v0.9/PLAIN-CODE-RESULTS.md: the same 11 inputs sent to plain
+  Claude Code with Sharaqi unloaded, for $2.0657. It exposes no route; it
+  flagged both CRITICAL risks in its replies and did 1 of the 2 reviews. This
+  entry adds documentation only; the routing code and policy are unchanged.
+
 ### Added
 - `scripts/route.py`: the routing policy as code. The orchestrator passes the
   facts it judged (track, CRITICAL trigger, behaviour change, size, checks,
