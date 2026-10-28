@@ -1,0 +1,1144 @@
+diff --git a/src/sheet.js b/src/sheet.js
+index 9fab231..9aa6591 100644
+--- a/src/sheet.js
++++ b/src/sheet.js
+@@ -1,10 +1,575 @@
+-// Spreadsheet engine. Not implemented yet.
++// Spreadsheet engine: tokenizer + recursive-descent parser to an AST, cached
++// values with dependent invalidation, and an iterative Tarjan SCC walk that
++// both finds cycles and evaluates cells in dependency order (no recursion
++// over cell depth, so long chains cannot overflow the stack).
++
++const MAX_COL = 26;
++const MAX_ROW = 99999;
++const MAX_NESTING = 1000;
++
++class Err {
++    constructor(code) {
++        this.code = code;
++    }
++}
++
++const E = {
++    PARSE: new Err('#PARSE!'),
++    NAME: new Err('#NAME?'),
++    REF: new Err('#REF!'),
++    VALUE: new Err('#VALUE!'),
++    DIV0: new Err('#DIV/0!'),
++    CYCLE: new Err('#CYCLE!'),
++};
++
++class ParseError extends Error {}
++
++const REF_RE = /^([A-Za-z])([1-9][0-9]{0,4})$/;
++
++function makeKey(col, row) {
++    return String.fromCharCode(65 + col) + row;
++}
++
++// Strict reference parsing used by set/get.
++function parseRef(ref) {
++    if (typeof ref !== 'string') {
++        throw new RangeError(`Invalid cell reference: ${String(ref)}`);
++    }
++    const m = REF_RE.exec(ref);
++    if (!m) throw new RangeError(`Invalid cell reference: ${ref}`);
++    const col = m[1].toUpperCase().charCodeAt(0) - 65;
++    const row = Number(m[2]);
++    return { col, row, key: makeKey(col, row) };
++}
++
++// ---------------------------------------------------------------- tokenizer
++
++const WS_RE = /\s*/y;
++const TOKEN_RE = /(\d+\.?\d*|\.\d+)|([A-Za-z][A-Za-z0-9_]*)|(<>|<=|>=|[-+*/(),:=<>])/y;
++
++function tokenize(src) {
++    const toks = [];
++    let pos = 0;
++    for (;;) {
++        WS_RE.lastIndex = pos;
++        WS_RE.exec(src);
++        pos = WS_RE.lastIndex;
++        if (pos >= src.length) break;
++        TOKEN_RE.lastIndex = pos;
++        const m = TOKEN_RE.exec(src);
++        if (!m) throw new ParseError('bad character');
++        if (m[1] !== undefined) toks.push({ t: 'num', v: Number(m[1]) });
++        else if (m[2] !== undefined) toks.push({ t: 'id', v: m[2] });
++        else toks.push({ t: 'op', v: m[3] });
++        pos = TOKEN_RE.lastIndex;
++    }
++    return toks;
++}
++
++// ------------------------------------------------------------------- parser
++
++const AGGREGATES = new Set(['SUM', 'MIN', 'MAX', 'COUNT']);
++const CMP_OPS = new Set(['=', '<>', '<', '>', '<=', '>=']);
++const LOOSE_REF_RE = /^([A-Za-z]+)([0-9]+)$/;
++
++// Returns a ref node, a badref node (outside A-Z / 1-99999), or null when the
++// identifier is not reference-shaped at all.
++function refNodeFromId(id) {
++    const m = LOOSE_REF_RE.exec(id);
++    if (!m) return null;
++    const strict = REF_RE.exec(id);
++    if (!strict) return { t: 'badref' };
++    const col = strict[1].toUpperCase().charCodeAt(0) - 65;
++    const row = Number(strict[2]);
++    return { t: 'ref', col, row, key: makeKey(col, row) };
++}
++
++function parseFormula(src) {
++    const toks = tokenize(src);
++    let pos = 0;
++    let depth = 0;
++
++    const isOp = (v) => pos < toks.length && toks[pos].t === 'op' && toks[pos].v === v;
++    const fail = () => {
++        throw new ParseError('syntax');
++    };
++    const enter = () => {
++        if (++depth > MAX_NESTING) fail();
++    };
++
++    function parseComparison() {
++        let left = parseAdditive();
++        while (pos < toks.length && toks[pos].t === 'op' && CMP_OPS.has(toks[pos].v)) {
++            const op = toks[pos++].v;
++            left = { t: 'bin', op, l: left, r: parseAdditive() };
++        }
++        return left;
++    }
++
++    function parseAdditive() {
++        let left = parseMultiplicative();
++        while (isOp('+') || isOp('-')) {
++            const op = toks[pos++].v;
++            left = { t: 'bin', op, l: left, r: parseMultiplicative() };
++        }
++        return left;
++    }
++
++    function parseMultiplicative() {
++        let left = parseUnary();
++        while (isOp('*') || isOp('/')) {
++            const op = toks[pos++].v;
++            left = { t: 'bin', op, l: left, r: parseUnary() };
++        }
++        return left;
++    }
++
++    function parseUnary() {
++        if (isOp('-')) {
++            pos++;
++            enter();
++            const x = parseUnary();
++            depth--;
++            return { t: 'neg', x };
++        }
++        return parsePrimary();
++    }
++
++    function parsePrimary() {
++        const tok = toks[pos];
++        if (!tok) fail();
++        if (tok.t === 'num') {
++            pos++;
++            return { t: 'num', v: tok.v };
++        }
++        if (tok.t === 'id') {
++            pos++;
++            if (isOp('(')) return parseCall(tok.v.toUpperCase());
++            const ref = refNodeFromId(tok.v);
++            if (!ref) fail();
++            return ref;
++        }
++        if (tok.v === '(') {
++            pos++;
++            enter();
++            const inner = parseComparison();
++            depth--;
++            if (!isOp(')')) fail();
++            pos++;
++            return inner; // parentheses are transparent
++        }
++        return fail();
++    }
++
++    function parseArg() {
++        // range: ref ':' ref directly followed by ',' or ')'
++        const a = toks[pos];
++        const colon = toks[pos + 1];
++        const b = toks[pos + 2];
++        const after = toks[pos + 3];
++        if (
++            a && a.t === 'id' && colon && colon.t === 'op' && colon.v === ':' &&
++            b && b.t === 'id' && after && after.t === 'op' && (after.v === ',' || after.v === ')')
++        ) {
++            const r1 = refNodeFromId(a.v);
++            const r2 = refNodeFromId(b.v);
++            if (!r1 || !r2) fail();
++            pos += 3;
++            if (r1.t === 'badref' || r2.t === 'badref') return { t: 'badref' };
++            return {
++                t: 'range',
++                c1: Math.min(r1.col, r2.col),
++                c2: Math.max(r1.col, r2.col),
++                r1: Math.min(r1.row, r2.row),
++                r2: Math.max(r1.row, r2.row),
++            };
++        }
++        return parseComparison();
++    }
++
++    function parseCall(name) {
++        pos++; // '('
++        enter();
++        const args = [];
++        if (isOp(')')) {
++            pos++;
++        } else {
++            for (;;) {
++                args.push(parseArg());
++                if (isOp(',')) {
++                    pos++;
++                } else if (isOp(')')) {
++                    pos++;
++                    break;
++                } else {
++                    fail();
++                }
++            }
++        }
++        depth--;
++        if (name === 'IF') {
++            if (args.length !== 3 || args.some((a) => a.t === 'range')) fail();
++        }
++        return { t: 'call', name, args };
++    }
++
++    const ast = parseComparison();
++    if (pos !== toks.length) fail();
++    return ast;
++}
++
++// Collect point references and ranges written in an AST (all IF branches).
++function collectDeps(ast) {
++    const points = new Set();
++    const ranges = [];
++    const stack = [ast];
++    while (stack.length) {
++        const n = stack.pop();
++        switch (n.t) {
++            case 'ref':
++                points.add(n.key);
++                break;
++            case 'range':
++                ranges.push(n);
++                break;
++            case 'bin':
++                stack.push(n.l, n.r);
++                break;
++            case 'neg':
++                stack.push(n.x);
++                break;
++            case 'call':
++                for (const a of n.args) stack.push(a);
++                break;
++            default:
++                break;
++        }
++    }
++    return { points, ranges };
++}
++
++// -------------------------------------------------------------------- sheet
++
++function parseRaw(raw) {
++    if (raw === '') return null;
++    const trimmed = raw.trim();
++    if (trimmed !== '') {
++        const n = Number(trimmed);
++        if (Number.isFinite(n)) return { kind: 'num', value: n };
++    }
++    if (raw.startsWith('=')) return { kind: 'formula' };
++    return { kind: 'text', value: raw };
++}
++
+ export class Sheet {
++    constructor() {
++        this.cells = new Map(); // key -> cell
++        this.dependents = new Map(); // key -> Set of formula-cell keys (point refs)
++        this.rangeOwners = new Set(); // keys of formula cells that contain ranges
++        this.run = 0;
++    }
++
+     set(ref, raw) {
+-        throw new Error('not implemented');
++        const { col, row, key } = parseRef(ref);
++        if (typeof raw !== 'string') {
++            throw new TypeError('raw must be a string');
++        }
++
++        this._unregister(key);
++
++        const parsed = parseRaw(raw);
++        if (!parsed) {
++            this.cells.delete(key);
++        } else if (parsed.kind === 'formula') {
++            const cell = {
++                key, col, row, kind: 'formula', ast: null, points: null, ranges: null,
++                value: null, valid: false, run: 0, idx: 0, low: 0, on: false,
++            };
++            try {
++                cell.ast = parseFormula(raw.slice(1));
++            } catch (e) {
++                // ParseError, or a stack overflow from absurd nesting.
++                if (!(e instanceof ParseError) && !(e instanceof RangeError)) throw e;
++                cell.value = E.PARSE;
++                cell.valid = true;
++            }
++            this.cells.set(key, cell);
++            if (cell.ast) this._register(cell);
++        } else {
++            this.cells.set(key, {
++                key, col, row, kind: parsed.kind, value: parsed.value, valid: true,
++            });
++        }
++        this._invalidate(key);
+     }
+ 
+     get(ref) {
+-        throw new Error('not implemented');
++        const { key } = parseRef(ref);
++        const cell = this.cells.get(key);
++        if (!cell) return null;
++        if (!cell.valid) this._compute(cell);
++        const v = cell.value;
++        return v instanceof Err ? v.code : v;
++    }
++
++    // ---- dependency bookkeeping
++
++    _register(cell) {
++        const { points, ranges } = collectDeps(cell.ast);
++        cell.points = points;
++        cell.ranges = ranges;
++        for (const p of points) {
++            let s = this.dependents.get(p);
++            if (!s) this.dependents.set(p, (s = new Set()));
++            s.add(cell.key);
++        }
++        if (ranges.length) this.rangeOwners.add(cell.key);
++    }
++
++    _unregister(key) {
++        const old = this.cells.get(key);
++        if (!old || old.kind !== 'formula') return;
++        if (old.points) {
++            for (const p of old.points) {
++                const s = this.dependents.get(p);
++                if (s) {
++                    s.delete(key);
++                    if (s.size === 0) this.dependents.delete(p);
++                }
++            }
++        }
++        this.rangeOwners.delete(key);
++    }
++
++    // Invariant: a valid cell has only valid dependencies, so an already
++    // invalid cell has only invalid dependents and the walk can stop there.
++    _invalidate(startKey) {
++        const stack = [startKey];
++        while (stack.length) {
++            const k = stack.pop();
++            const ds = this.dependents.get(k);
++            if (ds) {
++                for (const dk of ds) {
++                    const c = this.cells.get(dk);
++                    if (c && c.valid) {
++                        c.valid = false;
++                        stack.push(dk);
++                    }
++                }
++            }
++            if (this.rangeOwners.size) {
++                const col = k.charCodeAt(0) - 65;
++                const row = Number(k.slice(1));
++                for (const ok of this.rangeOwners) {
++                    const c = this.cells.get(ok);
++                    if (!c || !c.valid) continue;
++                    for (const r of c.ranges) {
++                        if (col >= r.c1 && col <= r.c2 && row >= r.r1 && row <= r.r2) {
++                            c.valid = false;
++                            stack.push(ok);
++                            break;
++                        }
++                    }
++                }
++            }
++        }
++    }
++
++    // ---- evaluation driver (iterative Tarjan)
++
++    _successors(cell) {
++        const out = [];
++        for (const p of cell.points) {
++            const c = this.cells.get(p);
++            if (c) out.push(c);
++        }
++        for (const r of cell.ranges) {
++            for (const c of this._rangeCells(r)) out.push(c);
++        }
++        return out;
++    }
++
++    // Existing cells inside a range, in row-major order.
++    _rangeCells(r) {
++        const out = [];
++        const area = (r.c2 - r.c1 + 1) * (r.r2 - r.r1 + 1);
++        if (area <= this.cells.size) {
++            for (let row = r.r1; row <= r.r2; row++) {
++                for (let col = r.c1; col <= r.c2; col++) {
++                    const c = this.cells.get(makeKey(col, row));
++                    if (c) out.push(c);
++                }
++            }
++        } else {
++            for (const c of this.cells.values()) {
++                if (c.col >= r.c1 && c.col <= r.c2 && c.row >= r.r1 && c.row <= r.r2) {
++                    out.push(c);
++                }
++            }
++            out.sort((a, b) => a.row - b.row || a.col - b.col);
++        }
++        return out;
++    }
++
++    _compute(target) {
++        const run = ++this.run;
++        let index = 0;
++        const sccStack = [];
++        const frames = [];
++
++        const visit = (cell) => {
++            cell.run = run;
++            cell.idx = cell.low = index++;
++            cell.on = true;
++            sccStack.push(cell);
++            frames.push({ cell, succ: this._successors(cell), i: 0, self: false });
++        };
++
++        visit(target);
++        while (frames.length) {
++            const f = frames[frames.length - 1];
++            if (f.i < f.succ.length) {
++                const w = f.succ[f.i++];
++                if (w === f.cell) {
++                    f.self = true;
++                } else if (w.valid) {
++                    // already final
++                } else if (w.run !== run) {
++                    visit(w);
++                } else if (w.on) {
++                    if (w.idx < f.cell.low) f.cell.low = w.idx;
++                }
++                continue;
++            }
++            frames.pop();
++            const c = f.cell;
++            if (frames.length) {
++                const parent = frames[frames.length - 1].cell;
++                if (c.low < parent.low) parent.low = c.low;
++            }
++            if (c.low !== c.idx) continue;
++            const members = [];
++            let m;
++            do {
++                m = sccStack.pop();
++                m.on = false;
++                members.push(m);
++            } while (m !== c);
++            if (members.length > 1 || f.self) {
++                for (const x of members) {
++                    x.value = E.CYCLE;
++                    x.valid = true;
++                }
++            } else {
++                const v = this._ev(c.ast);
++                c.value = v === null ? 0 : v;
++                c.valid = true;
++            }
++        }
++    }
++
++    // ---- expression evaluation
++    // Values: number | string (text) | null (empty cell) | Err.
++
++    _ev(n) {
++        switch (n.t) {
++            case 'num':
++                return n.v;
++            case 'ref': {
++                const c = this.cells.get(n.key);
++                return c ? c.value : null;
++            }
++            case 'neg': {
++                const v = this._ev(n.x);
++                if (v instanceof Err) return v;
++                if (typeof v === 'string') return E.VALUE;
++                return 0 - (v === null ? 0 : v);
++            }
++            case 'bin': {
++                // Walk the left spine iteratively: long a+b+c+... chains.
++                const spine = [];
++                let cur = n;
++                while (cur.t === 'bin') {
++                    spine.push(cur);
++                    cur = cur.l;
++                }
++                let acc = this._ev(cur);
++                for (let i = spine.length - 1; i >= 0; i--) {
++                    acc = this._binop(spine[i].op, acc, spine[i].r);
++                }
++                return acc;
++            }
++            case 'call':
++                return this._call(n);
++            default:
++                // badref (and a range that somehow reached here)
++                return n.t === 'badref' ? E.REF : E.PARSE;
++        }
++    }
++
++    _binop(op, left, rightNode) {
++        if (left instanceof Err) return left;
++        const right = this._ev(rightNode);
++        if (right instanceof Err) return right;
++        if (typeof left === 'string' || typeof right === 'string') return E.VALUE;
++        const a = left === null ? 0 : left;
++        const b = right === null ? 0 : right;
++        let r;
++        switch (op) {
++            case '+': r = a + b; break;
++            case '-': r = a - b; break;
++            case '*': r = a * b; break;
++            case '/':
++                if (b === 0) return E.DIV0;
++                r = a / b;
++                break;
++            case '=': return a === b ? 1 : 0;
++            case '<>': return a !== b ? 1 : 0;
++            case '<': return a < b ? 1 : 0;
++            case '>': return a > b ? 1 : 0;
++            case '<=': return a <= b ? 1 : 0;
++            default: return a >= b ? 1 : 0; // '>='
++        }
++        return r === 0 ? 0 : r; // normalise -0
++    }
++
++    _call(n) {
++        if (n.name === 'IF') {
++            const cond = this._ev(n.args[0]);
++            if (cond instanceof Err) return cond;
++            if (typeof cond === 'string') return E.VALUE;
++            return this._ev(cond ? n.args[1] : n.args[2]);
++        }
++        if (!AGGREGATES.has(n.name)) return E.NAME;
++
++        let sum = 0;
++        let count = 0;
++        let min = Infinity;
++        let max = -Infinity;
++        const take = (v) => {
++            if (typeof v !== 'number') return;
++            sum += v;
++            count++;
++            if (v < min) min = v;
++            if (v > max) max = v;
++        };
++        for (const arg of n.args) {
++            if (arg.t === 'range') {
++                for (const c of this._rangeCells(arg)) {
++                    if (c.value instanceof Err) return c.value;
++                    take(c.value);
++                }
++            } else {
++                const v = this._ev(arg);
++                if (v instanceof Err) return v;
++                take(v);
++            }
++        }
++        switch (n.name) {
++            case 'SUM': return sum === 0 ? 0 : sum;
++            case 'COUNT': return count;
++            case 'MIN': return count ? min : 0;
++            default: return count ? max : 0;
++        }
+     }
+ }
+diff --git a/test/sheet.test.js b/test/sheet.test.js
+new file mode 100644
+index 0000000..ff69818
+--- /dev/null
++++ b/test/sheet.test.js
+@@ -0,0 +1,555 @@
++import assert from 'node:assert/strict';
++import { test } from 'node:test';
++
++import { Sheet } from '../src/sheet.js';
++
++// Build a sheet from { ref: raw } and return it.
++function sheet(cells = {}) {
++    const s = new Sheet();
++    for (const [ref, raw] of Object.entries(cells)) s.set(ref, raw);
++    return s;
++}
++
++// Evaluate a single formula placed in Z1 of a sheet with the given cells.
++function f(formula, cells = {}) {
++    const s = sheet(cells);
++    s.set('Z1', formula);
++    return s.get('Z1');
++}
++
++test('references: case-insensitive, invalid ones throw RangeError', () => {
++    const s = new Sheet();
++    s.set('a1', '5');
++    assert.equal(s.get('A1'), 5);
++    assert.equal(s.get('a1'), 5);
++    s.set('Z99999', '7');
++    assert.equal(s.get('z99999'), 7);
++    for (const bad of ['A0', 'AA1', 'A100000', '1A', '', 'A', 'A-1', ' A1', 'A1 ', '[1', 'A01', 'A1.5']) {
++        assert.throws(() => s.set(bad, '1'), RangeError, `set ${bad}`);
++        assert.throws(() => s.get(bad), RangeError, `get ${bad}`);
++    }
++    assert.throws(() => s.get(undefined), RangeError);
++    assert.throws(() => s.set(null, '1'), RangeError);
++});
++
++test('set requires a string raw value', () => {
++    const s = new Sheet();
++    assert.throws(() => s.set('A1', 5), TypeError);
++});
++
++test('cell contents: numbers, text, clearing', () => {
++    const s = new Sheet();
++    assert.equal(s.get('A1'), null);
++    s.set('A1', '3');
++    s.set('A2', '-2.5');
++    s.set('A3', '1e3');
++    s.set('A4', ' 3 ');
++    s.set('A5', 'hello');
++    s.set('A6', '  padded text ');
++    s.set('A7', 'Infinity');
++    s.set('A8', '1e999');
++    assert.equal(s.get('A1'), 3);
++    assert.equal(s.get('A2'), -2.5);
++    assert.equal(s.get('A3'), 1000);
++    assert.equal(s.get('A4'), 3);
++    assert.equal(s.get('A5'), 'hello');
++    assert.equal(s.get('A6'), '  padded text ');
++    assert.equal(s.get('A7'), 'Infinity');
++    assert.equal(s.get('A8'), '1e999');
++    s.set('A1', '');
++    assert.equal(s.get('A1'), null);
++    s.set('A5', '');
++    assert.equal(s.get('A5'), null);
++});
++
++test('whitespace-only raw text is kept as text, not 0', () => {
++    const s = sheet({ A1: '   ' });
++    assert.equal(s.get('A1'), '   ');
++});
++
++test('text that looks like an error is plain text, not an error', () => {
++    const s = sheet({ A1: '#DIV/0!', B1: '=A1', C1: '=A1+1', D1: '=SUM(A1)' });
++    assert.equal(s.get('A1'), '#DIV/0!');
++    assert.equal(s.get('B1'), '#DIV/0!');
++    assert.equal(s.get('C1'), '#VALUE!');
++    assert.equal(s.get('D1'), 0);
++});
++
++test('a raw starting with = is a formula (leading space makes it text)', () => {
++    const s = sheet({ A1: '=1+1', A2: ' =1+1' });
++    assert.equal(s.get('A1'), 2);
++    assert.equal(s.get('A2'), ' =1+1');
++});
++
++test('literals, operators, precedence, associativity', () => {
++    assert.equal(f('=2'), 2);
++    assert.equal(f('=3.5'), 3.5);
++    assert.equal(f('=.5+1'), 1.5);
++    assert.equal(f('=1+2*3'), 7);
++    assert.equal(f('=(1+2)*3'), 9);
++    assert.equal(f('=10-4-3'), 3);
++    assert.equal(f('=100/10/5'), 2);
++    assert.equal(f('=2*3/4'), 1.5);
++    assert.equal(f('=-2*3'), -6);
++    assert.equal(f('=--2'), 2);
++    assert.equal(f('=2--1'), 3);
++    assert.equal(f('=-(1+2)'), -3);
++    assert.equal(f('= 1 + 2 '), 3);
++    assert.equal(f('=1+2<4'), 1);
++    assert.equal(f('=1<2<3'), 1); // (1<2)<3
++    assert.equal(f('=3>2>1'), 0); // (3>2)>1 = 1>1
++    assert.equal(f('=1=1=1'), 1);
++});
++
++test('unary minus of zero is 0, not -0', () => {
++    assert.ok(Object.is(f('=-0'), 0));
++    assert.ok(Object.is(f('=0*-1'), 0));
++    assert.ok(Object.is(f('=-A1', { A1: '0' }), 0));
++    assert.ok(Object.is(f('=SUM(-0)'), 0));
++});
++
++test('comparisons return 1 or 0', () => {
++    assert.equal(f('=1=1'), 1);
++    assert.equal(f('=1=2'), 0);
++    assert.equal(f('=1<>2'), 1);
++    assert.equal(f('=1<>1'), 0);
++    assert.equal(f('=1<2'), 1);
++    assert.equal(f('=2<1'), 0);
++    assert.equal(f('=2>1'), 1);
++    assert.equal(f('=1>2'), 0);
++    assert.equal(f('=2<=2'), 1);
++    assert.equal(f('=3<=2'), 0);
++    assert.equal(f('=2>=2'), 1);
++    assert.equal(f('=1>=2'), 0);
++});
++
++test('cell references in formulas, case-insensitive; empty is 0', () => {
++    const cells = { A1: '4', B1: '6' };
++    assert.equal(f('=A1+B1', cells), 10);
++    assert.equal(f('=a1*b1', cells), 24);
++    assert.equal(f('=C1', cells), 0);
++    assert.equal(f('=C1+1', cells), 1);
++    assert.equal(f('=C1=0', cells), 1);
++    assert.equal(f('=(A1)', cells), 4);
++});
++
++test('direct reference returns the cell value, text included', () => {
++    const s = sheet({ A1: 'hi', B1: '=A1', C1: '=(A1)', D1: '=b1' });
++    assert.equal(s.get('B1'), 'hi');
++    assert.equal(s.get('C1'), 'hi');
++    assert.equal(s.get('D1'), 'hi');
++});
++
++test('text with operators or comparisons gives #VALUE!', () => {
++    const cells = { A1: 'hi', B1: '2' };
++    assert.equal(f('=A1+1', cells), '#VALUE!');
++    assert.equal(f('=1+A1', cells), '#VALUE!');
++    assert.equal(f('=A1*B1', cells), '#VALUE!');
++    assert.equal(f('=-A1', cells), '#VALUE!');
++    assert.equal(f('=A1=A1', cells), '#VALUE!');
++    assert.equal(f('=A1<B1', cells), '#VALUE!');
++    assert.equal(f('=B1>=A1', cells), '#VALUE!');
++    assert.equal(f('=IF(A1,1,2)', cells), '#VALUE!');
++});
++
++test('#DIV/0!', () => {
++    assert.equal(f('=1/0'), '#DIV/0!');
++    assert.equal(f('=1/A1'), '#DIV/0!'); // empty is 0
++    assert.equal(f('=1/(2-2)'), '#DIV/0!');
++    assert.equal(f('=0/5'), 0);
++});
++
++test('SUM, MIN, MAX, COUNT over expressions and ranges', () => {
++    const cells = { A1: '1', A2: '2', A3: '3', B1: '10', B2: '-4', B3: '5' };
++    assert.equal(f('=SUM(A1:A3)', cells), 6);
++    assert.equal(f('=SUM(A1:B3)', cells), 17);
++    assert.equal(f('=SUM(A1, B1, 100)', cells), 111);
++    assert.equal(f('=SUM(A1:A3, B1*2)', cells), 26);
++    assert.equal(f('=MIN(A1:B3)', cells), -4);
++    assert.equal(f('=MAX(A1:B3)', cells), 10);
++    assert.equal(f('=MIN(A1:A3, -9)', cells), -9);
++    assert.equal(f('=MAX(A1:A3, 99)', cells), 99);
++    assert.equal(f('=COUNT(A1:B3)', cells), 6);
++    assert.equal(f('=COUNT(A1:B3, 1, 2)', cells), 8);
++    assert.equal(f('=sum(a1:a3)', cells), 6);
++    assert.equal(f('=Max(A1:A3)', cells), 3);
++    assert.equal(f('=SUM()'), 0);
++    assert.equal(f('=COUNT()'), 0);
++    assert.equal(f('=SUM(1,2,3)'), 6);
++    assert.equal(f('=SUM(SUM(1,2), MAX(3,4))'), 7);
++});
++
++test('ranges: reversed corners and single-cell ranges', () => {
++    const cells = { A1: '1', A2: '2', B1: '3', B2: '4' };
++    assert.equal(f('=SUM(B2:A1)', cells), 10);
++    assert.equal(f('=SUM(B1:A2)', cells), 10);
++    assert.equal(f('=SUM(A2:B1)', cells), 10);
++    assert.equal(f('=SUM(A1:A1)', cells), 1);
++    assert.equal(f('=SUM(a2:a1)', cells), 3);
++});
++
++test('aggregates ignore text and empty values; MIN/MAX with no numbers give 0', () => {
++    const cells = { A1: 'x', A2: '5', A4: '7', B1: 'y' };
++    assert.equal(f('=SUM(A1:A4)', cells), 12);
++    assert.equal(f('=COUNT(A1:A4)', cells), 2);
++    assert.equal(f('=MIN(A1:A4)', cells), 5);
++    assert.equal(f('=MAX(A1:A4)', cells), 7);
++    assert.equal(f('=MIN(B1:B3)', cells), 0);
++    assert.equal(f('=MAX(B1:B3)', cells), 0);
++    assert.equal(f('=SUM(B1:B3)', cells), 0);
++    assert.equal(f('=COUNT(B1:B3)', cells), 0);
++    // direct references to text / empty cells are ignored too
++    assert.equal(f('=SUM(A1, A2)', cells), 5);
++    assert.equal(f('=COUNT(A1, A3, A2)', cells), 1);
++    assert.equal(f('=MAX(A3, -5)', cells), -5);
++    assert.equal(f('=MIN(A1)', cells), 0);
++    // a range of only empty cells
++    assert.equal(f('=MAX(C1:C9)'), 0);
++    assert.equal(f('=MIN(C1:C9)'), 0);
++});
++
++test('a range whose cells hold formulas', () => {
++    const cells = { A1: '1', A2: '=A1+1', A3: '=A2+1' };
++    assert.equal(f('=SUM(A1:A3)', cells), 6);
++    const s = sheet({ ...cells, B1: '=SUM(A1:A3)' });
++    assert.equal(s.get('B1'), 6);
++    s.set('A1', '10');
++    assert.equal(s.get('B1'), 33);
++});
++
++test('IF: truthiness and lazy branches', () => {
++    assert.equal(f('=IF(1, 10, 20)'), 10);
++    assert.equal(f('=IF(0, 10, 20)'), 20);
++    assert.equal(f('=IF(-3, 10, 20)'), 10);
++    assert.equal(f('=IF(0.5, 10, 20)'), 10);
++    assert.equal(f('=IF(A1, 10, 20)'), 20);
++    assert.equal(f('=if(1<2, 10, 20)'), 10);
++    assert.equal(f('=IF(1, 10, 1/0)'), 10);
++    assert.equal(f('=IF(0, 1/0, 20)'), 20);
++    assert.equal(f('=IF(1, 10, NOPE(1))'), 10);
++    assert.equal(f('=IF(0, B1, 3)', { B1: 'x' }), 3);
++    assert.equal(f('=IF(1/0, 1, 2)'), '#DIV/0!');
++    assert.equal(f('=IF(1, 1/0, 2)'), '#DIV/0!');
++    assert.equal(f('=IF(1, A1, 2)', { A1: 'txt' }), 'txt');
++    assert.equal(f('=IF(1, 1, 2) + IF(0, 1, 2)'), 3);
++    assert.equal(f('=IF(1, IF(0, 1, 2), 3)'), 2);
++});
++
++test('an error in an IF branch that is not picked does not propagate across cells', () => {
++    const s = sheet({ A1: '=1/0', B1: '=IF(1, 5, A1)', C1: '=IF(0, 5, A1)' });
++    assert.equal(s.get('B1'), 5);
++    assert.equal(s.get('C1'), '#DIV/0!');
++});
++
++test('#PARSE! cases', () => {
++    for (const bad of [
++        '=', '=   ', '=1+', '=*2', '=(1', '=1)', '=1 2', '=A1 A2', '=1,2', '=+1', '=1++2',
++        '="x"', '=foo', '=A1:B2', '=(A1:B2)', '=1+A1:B2', '=SUM(A1:B2+1)', '=SUM(A1:)',
++        '=SUM(A1:B2:C3)', '=SUM(1,)', '=SUM(,1)', '=1e3', '=1.2.3', '=1 == 1', '=1 ! 2',
++        '=IF(1,2)', '=IF(1,2,3,4)', '=IF()', '=IF(1,2,)', '=if(1)',
++        '=IF(A1:A2, 1, 2)', '=IF(1, A1:A2, 2)', '=IF(1, 2, A1:A2)',
++        '=A1B', '=3A', '=SUM(A1:B2', '=SUM A1',
++    ]) {
++        assert.equal(f(bad), '#PARSE!', bad);
++    }
++});
++
++test('IF with the wrong argument count is #PARSE! even if unreachable code', () => {
++    assert.equal(f('=IF(1, 5, 6) + IF(1, 2)'), '#PARSE!');
++});
++
++test('absurdly deep nesting is #PARSE!, not a crash', () => {
++    const open = '('.repeat(50000);
++    assert.equal(f(`=${open}1${')'.repeat(50000)}`), '#PARSE!');
++    assert.equal(f(`=${'-'.repeat(50000)}1`), '#PARSE!');
++});
++
++test('very long flat formula evaluates without overflow', () => {
++    const terms = new Array(30000).fill('1').join('+');
++    assert.equal(f(`=${terms}`), 30000);
++});
++
++test('#NAME? for unknown functions', () => {
++    assert.equal(f('=FOO(1)'), '#NAME?');
++    assert.equal(f('=foo()'), '#NAME?');
++    assert.equal(f('=AVERAGE(A1:A3)'), '#NAME?');
++    assert.equal(f('=1+FOO(2)'), '#NAME?');
++    assert.equal(f('=SUM (1,2)'), 3); // whitespace before ( is fine
++});
++
++test('#REF! inside formulas for out-of-range references', () => {
++    assert.equal(f('=A0'), '#REF!');
++    assert.equal(f('=AA1'), '#REF!');
++    assert.equal(f('=A100000'), '#REF!');
++    assert.equal(f('=A0+1'), '#REF!');
++    assert.equal(f('=SUM(A0:B2)'), '#REF!');
++    assert.equal(f('=SUM(A1:AA2)'), '#REF!');
++    assert.equal(f('=SUM(1, A0)'), '#REF!');
++    assert.equal(f('=IF(1, 1, A0)'), 1);
++    assert.equal(f('=IF(A0, 1, 2)'), '#REF!');
++    assert.equal(f('=A99999', { A99999: '3' }), 3);
++});
++
++test('first error in left-to-right order wins', () => {
++    const cells = { A1: '=1/0', B1: '=FOO(1)', C1: '=A0', D1: 'text' };
++    assert.equal(f('=A1+B1', cells), '#DIV/0!');
++    assert.equal(f('=B1+A1', cells), '#NAME?');
++    assert.equal(f('=C1+A1+B1', cells), '#REF!');
++    assert.equal(f('=A1+C1', cells), '#DIV/0!');
++    assert.equal(f('=SUM(B1, A1)', cells), '#NAME?');
++    assert.equal(f('=SUM(A1, B1)', cells), '#DIV/0!');
++    assert.equal(f('=(1/0)+A0', cells), '#DIV/0!');
++    assert.equal(f('=A0+(1/0)', cells), '#REF!');
++    assert.equal(f('=A1<B1', cells), '#DIV/0!');
++    assert.equal(f('=-B1', cells), '#NAME?');
++    assert.equal(f('=IF(1, B1, A1)', cells), '#NAME?');
++    assert.equal(f('=IF(A1, B1, C1)', cells), '#DIV/0!');
++    // an operand error beats the operator's own #VALUE!
++    assert.equal(f('=D1+A1', cells), '#DIV/0!');
++    assert.equal(f('=A1+D1', cells), '#DIV/0!');
++    // the operator's #VALUE! beats #DIV/0! raised by the operator itself
++    assert.equal(f('=D1/0', cells), '#VALUE!');
++});
++
++test('first error in a range is read row by row, left to right within a row', () => {
++    // A1 ok, B1 #DIV/0!, A2 #NAME?, B2 #REF!
++    const cells = { A1: '1', B1: '=1/0', A2: '=FOO(1)', B2: '=A0' };
++    // row-major: B1 (#DIV/0!) before A2 (#NAME?) ; column-major would give #NAME?
++    assert.equal(f('=SUM(A1:B2)', cells), '#DIV/0!');
++    assert.equal(f('=COUNT(A1:B2)', cells), '#DIV/0!');
++    assert.equal(f('=MIN(B2:A1)', cells), '#DIV/0!');
++    assert.equal(f('=SUM(A2:B2)', cells), '#NAME?');
++    assert.equal(f('=SUM(B2:A2)', cells), '#NAME?');
++    assert.equal(f('=SUM(A1:A2)', cells), '#NAME?');
++    assert.equal(f('=SUM(A2:A2, B1:B1)', cells), '#NAME?');
++    assert.equal(f('=SUM(B1:B1, A2:A2)', cells), '#DIV/0!');
++    // same result when the range is large relative to the sheet (sparse path)
++    assert.equal(f('=SUM(A1:Y50)', cells), '#DIV/0!');
++    // and when the sheet is bigger than the range (dense path)
++    const bigger = { ...cells };
++    for (let i = 10; i < 40; i++) bigger[`C${i}`] = '1';
++    assert.equal(f('=SUM(A1:B2)', bigger), '#DIV/0!');
++});
++
++test('errors propagate through other cells', () => {
++    const s = sheet({ A1: '=1/0', B1: '=A1+1', C1: '=SUM(B1)', D1: '=B1' });
++    assert.equal(s.get('B1'), '#DIV/0!');
++    assert.equal(s.get('C1'), '#DIV/0!');
++    assert.equal(s.get('D1'), '#DIV/0!');
++    s.set('A1', '1');
++    assert.equal(s.get('D1'), 2);
++});
++
++test('#PARSE! cell referenced by another propagates', () => {
++    const s = sheet({ A1: '=1+', B1: '=A1+1' });
++    assert.equal(s.get('A1'), '#PARSE!');
++    assert.equal(s.get('B1'), '#PARSE!');
++});
++
++test('every get reflects all earlier sets', () => {
++    const s = sheet({ A1: '1', B1: '=A1*2', C1: '=B1+A1' });
++    assert.equal(s.get('C1'), 3);
++    s.set('A1', '5');
++    assert.equal(s.get('C1'), 15);
++    s.set('B1', 'text');
++    assert.equal(s.get('C1'), '#VALUE!');
++    s.set('B1', '');
++    assert.equal(s.get('C1'), 5);
++    s.set('B1', '=A1');
++    assert.equal(s.get('B1'), 5);
++    s.set('D1', '7');
++    s.set('E1', '=SUM(A1:D1)');
++    assert.equal(s.get('E1'), 5 + 5 + 10 + 7);
++    s.set('C1', '100'); // inside the range, replaced by a number
++    assert.equal(s.get('E1'), 5 + 5 + 100 + 7);
++    s.set('D1', '');
++    assert.equal(s.get('E1'), 110);
++    // a new cell appears inside a previously empty part of a range
++    s.set('F1', '=SUM(A1:C3)');
++    assert.equal(s.get('F1'), 110);
++    s.set('B3', '1000');
++    assert.equal(s.get('F1'), 1110);
++    // a reference to an empty cell updates when that cell is filled
++    s.set('G1', '=H1+1');
++    assert.equal(s.get('G1'), 1);
++    s.set('H1', '41');
++    assert.equal(s.get('G1'), 42);
++    s.set('H1', '');
++    assert.equal(s.get('G1'), 1);
++    // formula replaced by another formula with different dependencies
++    s.set('I1', '=A1');
++    assert.equal(s.get('I1'), 5);
++    s.set('I1', '=D1+8');
++    assert.equal(s.get('I1'), 8);
++    s.set('D1', '2');
++    assert.equal(s.get('I1'), 10);
++    s.set('A1', '0');
++    assert.equal(s.get('I1'), 10);
++});
++
++test('cycles: self-reference', () => {
++    const s = sheet({ A1: '=A1', B1: '=B1+1', C1: '=IF(0, C1, 1)', D1: '=SUM(D1:D1)' });
++    assert.equal(s.get('A1'), '#CYCLE!');
++    assert.equal(s.get('B1'), '#CYCLE!');
++    assert.equal(s.get('C1'), '#CYCLE!'); // via the untaken IF branch
++    assert.equal(s.get('D1'), '#CYCLE!');
++});
++
++test('cycles: two and three cell cycles; users of a cycle get #CYCLE! too', () => {
++    const s = sheet({
++        A1: '=B1', B1: '=C1', C1: '=A1',
++        D1: '=A1+1', E1: '=D1', F1: '=1', G1: '=F1+1',
++    });
++    for (const r of ['A1', 'B1', 'C1', 'D1', 'E1']) assert.equal(s.get(r), '#CYCLE!', r);
++    assert.equal(s.get('F1'), 1);
++    assert.equal(s.get('G1'), 2);
++});
++
++test('cycles through IF branches, whatever the values are', () => {
++    // A1 picks the safe branch (value would be 1) but still references B1.
++    const s = sheet({ A1: '=IF(1, 1, B1)', B1: '=A1' });
++    assert.equal(s.get('A1'), '#CYCLE!');
++    assert.equal(s.get('B1'), '#CYCLE!');
++    const t = sheet({ A1: '=IF(B1, 1, 2)', B1: '=IF(1, 0, A1)' });
++    assert.equal(t.get('A1'), '#CYCLE!');
++    assert.equal(t.get('B1'), '#CYCLE!');
++});
++
++test('cycles through ranges (every cell in the range counts)', () => {
++    const s = sheet({ A1: '=SUM(A2:A5)', A5: '=A1', A3: '7' });
++    assert.equal(s.get('A1'), '#CYCLE!');
++    assert.equal(s.get('A5'), '#CYCLE!');
++    // a cell inside its own range
++    const t = sheet({ B2: '=SUM(A1:C3)' });
++    assert.equal(t.get('B2'), '#CYCLE!');
++    // reversed corners
++    const u = sheet({ B2: '=COUNT(C3:A1)' });
++    assert.equal(u.get('B2'), '#CYCLE!');
++    // range cycle via an empty-then-filled cell
++    const v = sheet({ A1: '=SUM(B1:B3)' });
++    assert.equal(v.get('A1'), 0);
++    v.set('B2', '=A1');
++    assert.equal(v.get('A1'), '#CYCLE!');
++    assert.equal(v.get('B2'), '#CYCLE!');
++});
++
++test('a cell next to a cycle but not on it is not a cycle cell', () => {
++    // A1 -> B1 -> A1 is the cycle; C1 uses A1 only inside an unpicked IF branch.
++    const s = sheet({ A1: '=B1', B1: '=A1', C1: '=IF(1, 5, A1)' });
++    assert.equal(s.get('A1'), '#CYCLE!');
++    assert.equal(s.get('C1'), 5);
++});
++
++test('editing a cell that breaks a cycle restores normal values', () => {
++    const s = sheet({ A1: '=B1+1', B1: '=C1+1', C1: '=A1+1', D1: '=A1*2' });
++    assert.equal(s.get('A1'), '#CYCLE!');
++    assert.equal(s.get('D1'), '#CYCLE!');
++    s.set('C1', '10');
++    assert.equal(s.get('B1'), 11);
++    assert.equal(s.get('A1'), 12);
++    assert.equal(s.get('D1'), 24);
++    // re-create and break again, reading in a different order
++    s.set('C1', '=A1');
++    assert.equal(s.get('D1'), '#CYCLE!');
++    assert.equal(s.get('C1'), '#CYCLE!');
++    s.set('A1', '1');
++    assert.equal(s.get('C1'), 1);
++    assert.equal(s.get('D1'), 2);
++    assert.equal(s.get('B1'), 2);
++    // break by clearing
++    s.set('A1', '=B1');
++    assert.equal(s.get('A1'), '#CYCLE!');
++    s.set('B1', '');
++    assert.equal(s.get('A1'), 0);
++    assert.equal(s.get('C1'), 0);
++    // break a self-reference
++    s.set('E1', '=E1');
++    assert.equal(s.get('E1'), '#CYCLE!');
++    s.set('E1', '=1');
++    assert.equal(s.get('E1'), 1);
++});
++
++test('cycle with a tail, read from the tail first', () => {
++    const s = sheet({ A1: '=B1', B1: '=C1', C1: '=B1', D1: '=A1' });
++    assert.equal(s.get('D1'), '#CYCLE!');
++    assert.equal(s.get('A1'), '#CYCLE!');
++    assert.equal(s.get('B1'), '#CYCLE!');
++    assert.equal(s.get('C1'), '#CYCLE!');
++});
++
++test('two separate cycles joined by a bridge cell', () => {
++    const s = sheet({ A1: '=B1', B1: '=A1', C1: '=D1', D1: '=C1', E1: '=A1+C1' });
++    assert.equal(s.get('E1'), '#CYCLE!');
++    s.set('A1', '1');
++    assert.equal(s.get('E1'), '#CYCLE!'); // C1/D1 still cycle
++    s.set('C1', '2');
++    assert.equal(s.get('E1'), 3);
++    assert.equal(s.get('B1'), 1);
++    assert.equal(s.get('D1'), 2);
++});
++
++test('scale: 20,000 cell chain, forward order', () => {
++    const t0 = Date.now();
++    const s = new Sheet();
++    s.set('A1', '1');
++    for (let i = 2; i <= 20000; i++) s.set(`A${i}`, `=A${i - 1}+1`);
++    assert.equal(s.get('A20000'), 20000);
++    s.set('A1', '5');
++    assert.equal(s.get('A20000'), 20004);
++    assert.ok(Date.now() - t0 < 2000);
++});
++
++test('scale: 20,000 cell chain, reverse order, change A1, under 2s', () => {
++    const t0 = Date.now();
++    const s = new Sheet();
++    for (let i = 20000; i >= 2; i--) s.set(`A${i}`, `=A${i - 1}+1`);
++    s.set('A1', '1');
++    assert.equal(s.get('A20000'), 20000);
++    s.set('A1', '2');
++    assert.equal(s.get('A20000'), 20001);
++    assert.equal(s.get('A10000'), 10001);
++    assert.ok(Date.now() - t0 < 2000);
++});
++
++test('scale: chain with A1 unset, then set; and a chain closed into a cycle', () => {
++    const t0 = Date.now();
++    const s = new Sheet();
++    for (let i = 20000; i >= 2; i--) s.set(`A${i}`, `=A${i - 1}+1`);
++    assert.equal(s.get('A20000'), 19999); // A1 empty counts as 0
++    s.set('A1', '=A20000');
++    assert.equal(s.get('A20000'), '#CYCLE!');
++    assert.equal(s.get('A1'), '#CYCLE!');
++    assert.equal(s.get('A7777'), '#CYCLE!');
++    s.set('A1', '1');
++    assert.equal(s.get('A20000'), 20000);
++    assert.ok(Date.now() - t0 < 2000);
++});
++
++test('scale: chain in shuffled order', () => {
++    const t0 = Date.now();
++    const s = new Sheet();
++    const order = [];
++    for (let i = 1; i <= 20000; i++) order.push(i);
++    let seed = 12345;
++    for (let i = order.length - 1; i > 0; i--) {
++        seed = (seed * 1103515245 + 12345) % 2147483648;
++        const j = seed % (i + 1);
++        [order[i], order[j]] = [order[j], order[i]];
++    }
++    for (const i of order) s.set(`A${i}`, i === 1 ? '1' : `=A${i - 1}+1`);
++    assert.equal(s.get('A20000'), 20000);
++    s.set('A1', '0');
++    assert.equal(s.get('A20000'), 19999);
++    assert.ok(Date.now() - t0 < 2000);
++});
++
++test('range over a whole big column set does not blow up', () => {
++    const s = new Sheet();
++    for (let i = 1; i <= 2000; i++) s.set(`B${i}`, String(i));
++    s.set('A1', '=SUM(B1:B2000)');
++    s.set('A2', '=MAX(A1:Z99999)'); // includes A2 itself
++    assert.equal(s.get('A1'), 2001000);
++    assert.equal(s.get('A2'), '#CYCLE!');
++    s.set('A2', '=MAX(B1:Z99999)');
++    assert.equal(s.get('A2'), 2000);
++});

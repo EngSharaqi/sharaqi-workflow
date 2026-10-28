@@ -1,0 +1,6 @@
+plain  complex  $0.8352 wall   199.3s turns   7 go 0 hidden 14/14 models ['claude-haiku-5-5', 'claude-opus-5-5']
+plain  medium   $0.3657 wall    50.5s turns   8 go 0 hidden 22/22 models ['claude-haiku-5-5', 'claude-opus-5-5']
+plain  report   $2.3452 wall   254.3s turns  18 go 0 words 3259 urls 46 models ['claude-haiku-5-5', 'claude-opus-5-5']
+plugin complex  $0.9103 wall   551.0s turns   9 go 1 hidden 14/14 models ['claude-sonnet-5-5']
+plugin medium   $0.2633 wall    76.7s turns  12 go 1 hidden 22/22 models ['claude-sonnet-5-5']
+plugin report   $0.5091 wall    97.0s turns   9 go 0 words 1038 urls 12 models ['claude-sonnet-5-5', 'claude-haiku-5-5']

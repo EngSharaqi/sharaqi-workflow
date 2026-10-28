@@ -1,0 +1,646 @@
+[
+  {
+    "arm": "plain",
+    "task": "complex",
+    "exit_code": 0,
+    "timed_out": false,
+    "errors": [],
+    "cost_usd": 0.835214,
+    "cost_check_sum_models": 0.8352,
+    "wall_s": 199.3,
+    "api_s": 200.1,
+    "cli_s": 198.6,
+    "model_calls_main": 6,
+    "model_calls_sub": 0,
+    "turns": 7,
+    "messages_sent": 1,
+    "go_sent": 0,
+    "models": {
+      "claude-haiku-5-5": {
+        "cost": 0.0002,
+        "in": 2325,
+        "out": 29,
+        "cache_read": 0,
+        "cache_write": 0,
+        "web_search": 0
+      },
+      "claude-opus-5-5": {
+        "cost": 0.835,
+        "in": 12,
+        "out": 21917,
+        "cache_read": 300735,
+        "cache_write": 42054,
+        "web_search": 0
+      }
+    },
+    "tools": {
+      "Bash": 4,
+      "Write": 2
+    },
+    "agent_calls": [],
+    "route": null,
+    "output_tokens": 21946,
+    "changed": [
+      {
+        "file": "src/sheet.js",
+        "added": 483,
+        "deleted": 3
+      },
+      {
+        "file": "test/sheet.test.js",
+        "added": 255,
+        "deleted": 0
+      }
+    ],
+    "hidden": {
+      "pass": 14,
+      "fail": 0,
+      "tests": 14,
+      "failed": []
+    },
+    "own_tests": {
+      "exit": 0,
+      "tests": 25,
+      "pass": 25,
+      "fail": 0
+    }
+  },
+  {
+    "arm": "plain",
+    "task": "medium",
+    "exit_code": 0,
+    "timed_out": false,
+    "errors": [],
+    "cost_usd": 0.36568959999999995,
+    "cost_check_sum_models": 0.3657,
+    "wall_s": 50.5,
+    "api_s": 52.2,
+    "cli_s": 49.9,
+    "model_calls_main": 5,
+    "model_calls_sub": 0,
+    "turns": 8,
+    "messages_sent": 1,
+    "go_sent": 0,
+    "models": {
+      "claude-haiku-5-5": {
+        "cost": 0.0002,
+        "in": 1568,
+        "out": 26,
+        "cache_read": 0,
+        "cache_write": 0,
+        "web_search": 0
+      },
+      "claude-opus-5-5": {
+        "cost": 0.3655,
+        "in": 10,
+        "out": 5258,
+        "cache_read": 213759,
+        "cache_write": 27196,
+        "web_search": 0
+      }
+    },
+    "tools": {
+      "Bash": 3,
+      "Edit": 3,
+      "Write": 1
+    },
+    "agent_calls": [],
+    "route": null,
+    "output_tokens": 5284,
+    "changed": [
+      {
+        "file": "src/app.js",
+        "added": 73,
+        "deleted": 1
+      },
+      {
+        "file": "test/list.test.js",
+        "added": 136,
+        "deleted": 0
+      }
+    ],
+    "hidden": {
+      "pass": 22,
+      "fail": 0,
+      "tests": 22,
+      "failed": []
+    },
+    "own_tests": {
+      "exit": 0,
+      "tests": 30,
+      "pass": 30,
+      "fail": 0
+    }
+  },
+  {
+    "arm": "plain",
+    "task": "report",
+    "exit_code": 0,
+    "timed_out": false,
+    "errors": [],
+    "cost_usd": 2.3452425999999997,
+    "cost_check_sum_models": 2.3453,
+    "wall_s": 254.3,
+    "api_s": 392.9,
+    "cli_s": 253.3,
+    "model_calls_main": 7,
+    "model_calls_sub": 0,
+    "turns": 18,
+    "messages_sent": 1,
+    "go_sent": 0,
+    "models": {
+      "claude-haiku-5-5": {
+        "cost": 0.0015,
+        "in": 4713,
+        "out": 1987,
+        "cache_read": 0,
+        "cache_write": 0,
+        "web_search": 0
+      },
+      "claude-opus-5-5": {
+        "cost": 2.3438,
+        "in": 179423,
+        "out": 36771,
+        "cache_read": 328849,
+        "cache_write": 86862,
+        "web_search": 13
+      }
+    },
+    "tools": {
+      "ToolSearch": 1,
+      "WebSearch": 13,
+      "WebFetch": 2,
+      "Write": 1
+    },
+    "agent_calls": [],
+    "route": null,
+    "output_tokens": 38758,
+    "changed": [
+      {
+        "file": "report.md",
+        "added": 306,
+        "deleted": 0
+      }
+    ],
+    "report": {
+      "exists": true,
+      "bytes": 39054,
+      "words": 3259,
+      "lines": 307,
+      "headings": 19,
+      "h2": 8,
+      "h3": 10,
+      "tables": 2,
+      "urls": 46,
+      "domains": 38,
+      "salary_mentions": 112,
+      "links": [
+        {
+          "url": "https://4geeks.com/en/blog/ai-powered-learning/ai-engineer-salary",
+          "code": "200"
+        },
+        {
+          "url": "https://4geeks.com/en/blog/ai-powered-learning/ai-prompt-engineer",
+          "code": "200"
+        },
+        {
+          "url": "https://99aipro.com/article/ai-job-market-entry-level-roles-2026",
+          "code": "404"
+        },
+        {
+          "url": "https://africaglobalforum.com/reports/new-ladder-2026/",
+          "code": "200"
+        },
+        {
+          "url": "https://aitraining.jobs/roles/red-teaming",
+          "code": "200"
+        },
+        {
+          "url": "https://blog.theinterviewguys.com/best-ai-red-teaming-job/",
+          "code": "200"
+        },
+        {
+          "url": "https://dcgeeks.com/ai-data-center-careers/",
+          "code": "200"
+        },
+        {
+          "url": "https://dev.to/bcncodeschool/ai-jobs-in-2026-new-roles-skills-and-salary-examples-lkn",
+          "code": "200"
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Chief_AI_officer",
+          "code": "200"
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Forward_Deployed_Engineer",
+          "code": "200"
+        },
+        {
+          "url": "https://hashnode.com/blog/a-complete-2026-guide-to-the-forward-deployed-engineer",
+          "code": "200"
+        },
+        {
+          "url": "https://infosec.qa/blog/ai-red-teamer-salary-2026/",
+          "code": "200"
+        },
+        {
+          "url": "https://introl.com/blog/data-center-workforce-shortage-340000-unfilled-positions-2026",
+          "code": "200"
+        },
+        {
+          "url": "https://jobsbyculture.com/blog/eu-ai-act-hiring-impact-2026",
+          "code": "200"
+        },
+        {
+          "url": "https://ocpd.georgiasouthern.edu/blog/2026/08/05/what-is-a-forward-deployed-engineer-complete-2026-guide/",
+          "code": "200"
+        },
+        {
+          "url": "https://opendatascience.com/12-in-demand-ai-job-roles-2026-how-to-get-hired/",
+          "code": "200"
+        },
+        {
+          "url": "https://prometai.app/blog/new-jobs-created-by-ai",
+          "code": "200"
+        },
+        {
+          "url": "https://recruitslab.com/market-reports/product-management-hiring-report-2026",
+          "code": "200"
+        },
+        {
+          "url": "https://theairankings.com/guides/ai-training-jobs/",
+          "code": "200"
+        },
+        {
+          "url": "https://verifywise.ai/blog/ai-governance-salary-report-2026",
+          "code": "200"
+        },
+        {
+          "url": "https://veriipro.com/blog/ai-governance-specialist-career/",
+          "code": "200"
+        },
+        {
+          "url": "https://weclouddata.com/blog/7-new-ai-roles-organizations-are-hiring-for-in-2026/",
+          "code": "200"
+        },
+        {
+          "url": "https://www.aigigjobs.com/blog/mercor-vs-braintrust-vs-scale-ai-pay-comparison",
+          "code": "200"
+        },
+        {
+          "url": "https://www.apollotechnical.com/ai-jobs-statistics/",
+          "code": "200"
+        },
+        {
+          "url": "https://www.cnbc.com/2026/03/18/ai-data-center-buildout-jobs-salary-skilled-traders-worker-shortage.html",
+          "code": "200"
+        },
+        {
+          "url": "https://www.cnbc.com/2026/05/11/heres-how-artificial-intelligence-is-changing-boardrooms.html",
+          "code": "200"
+        },
+        {
+          "url": "https://www.cnbc.com/make-it/2026/08/18/millennials-and-gen-z-are-landing-fast-growing-high-paying-ai-jobs-linkedin-study.html",
+          "code": "200"
+        },
+        {
+          "url": "https://www.dice.com/career-advice/ai-related-jobs-top-linkedins-fastest-growing-roles-list-for-2026",
+          "code": "200"
+        },
+        {
+          "url": "https://www.finalroundai.com/blog/ai-created-million-jobs",
+          "code": "200"
+        },
+        {
+          "url": "https://www.glocomms.com/en-us/industry-insights/hiring-advice/what-is-a-forward-deployed-engineer",
+          "code": "429"
+        },
+        {
+          "url": "https://www.hrleader.com.au/business/27698-ai-engineer-tops-linkedin-s-2026-jobs-on-the-rise-list",
+          "code": "200"
+        },
+        {
+          "url": "https://www.ivanturkovic.com/the-ai-job-title-reference-guide-2026/",
+          "code": "200"
+        },
+        {
+          "url": "https://www.kore1.com/ai-engineer-salary-guide/",
+          "code": "200"
+        },
+        {
+          "url": "https://www.kore1.com/ai-product-manager-salary-guide/",
+          "code": "000"
+        },
+        {
+          "url": "https://www.landed.jobs/salaries/ai-product-manager",
+          "code": "200"
+        },
+        {
+          "url": "https://www.mercor.com/resources/experts/ai-trainer-salary-hourly-rates/",
+          "code": "200"
+        },
+        {
+          "url": "https://www.mercor.com/resources/experts/new-artificial-intelligence-job-opportunities/",
+          "code": "200"
+        },
+        {
+          "url": "https://www.peoplematters.in/news/ai-and-emerging-tech/76percent-of-firms-now-have-a-chief-ai-officer-up-from-26percent-in-a-year-ibm-49550",
+          "code": "200"
+        },
+        {
+          "url": "https://www.pin.com/blog/ai-compensation-salary-guide/",
+          "code": "200"
+        },
+        {
+          "url": "https://www.practical-devsecops.com/emerging-ai-security-roles/",
+          "code": "200"
+        },
+        {
+          "url": "https://www.recrew.ai/blog/reality-of-recruiting-prompt-engineers",
+          "code": "200"
+        },
+        {
+          "url": "https://www.recruitingfromscratch.com/blog/product-manager-salary-at-ai-startups-in-2026",
+          "code": "200"
+        },
+        {
+          "url": "https://www.solidaitech.com/2026/04/prompt-engineer-job-dead-ai-careers.html",
+          "code": "200"
+        },
+        {
+          "url": "https://www.weforum.org/publications/the-future-of-jobs-report-2025/in-full/2-jobs-outlook/",
+          "code": "403"
+        },
+        {
+          "url": "https://www.weforum.org/stories/2025/01/future-of-jobs-report-2025-the-fastest-growing-and-declining-jobs/",
+          "code": "403"
+        },
+        {
+          "url": "https://www.weforum.org/stories/jobs-and-the-future-of-work/ai-has-already-added-1-3-million-new-jobs-according-to-linkedin-data",
+          "code": "403"
+        }
+      ],
+      "links_ok": 40,
+      "links_403": 4
+    }
+  },
+  {
+    "arm": "plugin",
+    "task": "complex",
+    "exit_code": 0,
+    "timed_out": false,
+    "errors": [],
+    "cost_usd": 0.9103289999999999,
+    "cost_check_sum_models": 0.9103,
+    "wall_s": 551.0,
+    "api_s": 547.2,
+    "cli_s": 550.1,
+    "model_calls_main": 9,
+    "model_calls_sub": 6,
+    "turns": 9,
+    "messages_sent": 2,
+    "go_sent": 1,
+    "models": {
+      "claude-sonnet-5-5": {
+        "cost": 0.9103,
+        "in": 34,
+        "out": 53558,
+        "cache_read": 611735,
+        "cache_write": 104205,
+        "web_search": 0
+      }
+    },
+    "tools": {
+      "Bash": 8,
+      "Write": 3,
+      "Agent": 2,
+      "Read": 3,
+      "Edit": 1
+    },
+    "agent_calls": [
+      {
+        "subagent_type": "sharaqi:implementer",
+        "model": "sonnet",
+        "effort": "high",
+        "description": "Implement spreadsheet engine"
+      },
+      {
+        "subagent_type": "sharaqi:reviewer",
+        "model": "sonnet",
+        "effort": "low",
+        "description": "Review spreadsheet engine diff"
+      }
+    ],
+    "route": "ROUTE track=coding tier=planned mode=STANDARD plan=card approval=yes executor=inline review=reviewer·sonnet·low escalate=none checks=tests+lint seat=sonnet gate=hook",
+    "output_tokens": 53558,
+    "changed": [
+      {
+        "file": "src/sheet.js",
+        "added": 568,
+        "deleted": 3
+      },
+      {
+        "file": "test/sheet.test.js",
+        "added": 555,
+        "deleted": 0
+      }
+    ],
+    "hidden": {
+      "pass": 14,
+      "fail": 0,
+      "tests": 14,
+      "failed": []
+    },
+    "own_tests": {
+      "exit": 0,
+      "tests": 44,
+      "pass": 44,
+      "fail": 0
+    }
+  },
+  {
+    "arm": "plugin",
+    "task": "medium",
+    "exit_code": 0,
+    "timed_out": false,
+    "errors": [],
+    "cost_usd": 0.2632594,
+    "cost_check_sum_models": 0.2633,
+    "wall_s": 76.7,
+    "api_s": 74.7,
+    "cli_s": 76.0,
+    "model_calls_main": 7,
+    "model_calls_sub": 2,
+    "turns": 12,
+    "messages_sent": 2,
+    "go_sent": 1,
+    "models": {
+      "claude-sonnet-5-5": {
+        "cost": 0.2633,
+        "in": 20,
+        "out": 6775,
+        "cache_read": 351004,
+        "cache_write": 44227,
+        "web_search": 0
+      }
+    },
+    "tools": {
+      "Bash": 2,
+      "Read": 5,
+      "Edit": 2,
+      "Write": 1,
+      "Agent": 1,
+      "Grep": 1
+    },
+    "agent_calls": [
+      {
+        "subagent_type": "sharaqi:reviewer",
+        "model": "sonnet",
+        "effort": "low",
+        "description": "Review list-query diff"
+      }
+    ],
+    "route": "ROUTE track=coding tier=planned mode=STANDARD plan=card approval=yes executor=inline review=reviewer·sonnet·low escalate=none checks=tests+lint seat=sonnet gate=hook",
+    "output_tokens": 6775,
+    "changed": [
+      {
+        "file": "src/app.js",
+        "added": 53,
+        "deleted": 1
+      },
+      {
+        "file": "test/list.test.js",
+        "added": 97,
+        "deleted": 0
+      }
+    ],
+    "hidden": {
+      "pass": 22,
+      "fail": 0,
+      "tests": 22,
+      "failed": []
+    },
+    "own_tests": {
+      "exit": 0,
+      "tests": 11,
+      "pass": 11,
+      "fail": 0
+    }
+  },
+  {
+    "arm": "plugin",
+    "task": "report",
+    "exit_code": 0,
+    "timed_out": false,
+    "errors": [],
+    "cost_usd": 0.509144,
+    "cost_check_sum_models": 0.5092,
+    "wall_s": 97.0,
+    "api_s": 128.4,
+    "cli_s": 96.0,
+    "model_calls_main": 5,
+    "model_calls_sub": 0,
+    "turns": 9,
+    "messages_sent": 1,
+    "go_sent": 0,
+    "models": {
+      "claude-sonnet-5-5": {
+        "cost": 0.5048,
+        "in": 53699,
+        "out": 10027,
+        "cache_read": 194144,
+        "cache_write": 59427,
+        "web_search": 4
+      },
+      "claude-haiku-5-5": {
+        "cost": 0.0044,
+        "in": 27861,
+        "out": 3135,
+        "cache_read": 0,
+        "cache_write": 0,
+        "web_search": 0
+      }
+    },
+    "tools": {
+      "ToolSearch": 1,
+      "WebSearch": 4,
+      "WebFetch": 2,
+      "Write": 1
+    },
+    "agent_calls": [],
+    "route": "ROUTE track=noncoding tier=direct mode=- plan=none approval=no executor=inline review=none escalate=none checks=none seat=sonnet gate=hook",
+    "output_tokens": 13162,
+    "changed": [
+      {
+        "file": "report.md",
+        "added": 102,
+        "deleted": 0
+      }
+    ],
+    "report": {
+      "exists": true,
+      "bytes": 10609,
+      "words": 1038,
+      "lines": 103,
+      "headings": 15,
+      "h2": 5,
+      "h3": 9,
+      "tables": 1,
+      "urls": 12,
+      "domains": 9,
+      "salary_mentions": 35,
+      "links": [
+        {
+          "url": "https://agentmarketcap.ai/blog/2026/04/08/ai-agent-hiring-surge-2026-compensation-talent-shortage",
+          "code": "200"
+        },
+        {
+          "url": "https://futureagi.com/blog/agi-careers-prompt-engineering-opportunities/",
+          "code": "200"
+        },
+        {
+          "url": "https://opendatascience.com/12-in-demand-ai-job-roles-2026-how-to-get-hired/",
+          "code": "200"
+        },
+        {
+          "url": "https://www.axios.com/2025/01/07/ai-jobs-on-the-rise-linkedin-report",
+          "code": "403"
+        },
+        {
+          "url": "https://www.forbes.com/sites/rachelwells/2025/10/15/4-new-ai-jobs-that-pay-up-to-200000-in-2026/",
+          "code": "403"
+        },
+        {
+          "url": "https://www.forbes.com/sites/rachelwells/2026/08/19/the-ai-job-that-surged-255-in-2026-and-pays-113000/",
+          "code": "000"
+        },
+        {
+          "url": "https://www.herohunt.ai/blog/fastest-growing-ai-roles-in-2026-data-and-rankings/",
+          "code": "200"
+        },
+        {
+          "url": "https://www.kore1.com/ai-jobs-2026-hiring-boom/",
+          "code": "200"
+        },
+        {
+          "url": "https://www.pwc.com/gx/en/issues/artificial-intelligence/job-barometer/2025/report.pdf",
+          "code": "403"
+        },
+        {
+          "url": "https://www.pwc.com/gx/en/news-room/press-releases/2025/ai-linked-to-a-fourfold-increase-in-productivity-growth.html",
+          "code": "403"
+        },
+        {
+          "url": "https://www.weforum.org/publications/the-future-of-jobs-report-2025",
+          "code": "403"
+        },
+        {
+          "url": "https://www.weforum.org/stories/jobs-and-the-future-of-work/future-of-jobs-report-2025-the-fastest-growing-and-declining-jobs",
+          "code": "403"
+        }
+      ],
+      "links_ok": 5,
+      "links_403": 6
+    }
+  }
+]

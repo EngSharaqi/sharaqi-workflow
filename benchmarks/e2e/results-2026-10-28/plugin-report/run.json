@@ -1,0 +1,59 @@
+{
+  "arm": "plugin",
+  "task": "report",
+  "session_id": "a4a2e49a-8923-4599-9213-f002f11b4b2c",
+  "exit_code": 0,
+  "timed_out": false,
+  "wall_s": 97.0,
+  "messages_sent": [
+    {
+      "t": 0.0,
+      "text": "/sharaqi:sharaqi do اعمل تقرير شامل عن الوظائف الجديدة اللي ظهرت في عصر الذكاء الاصطناعي لسنة 2026: إيه هي الوظائف دي، كل وظيفة بتعمل إيه، المهارات المطلوبة، ومتوسط الرواتب أو الطلب عليها لو متاح، مع ذكر المصادر بروابطها. احفظ التقرير في ملف report.md في الريبو ده."
+    }
+  ],
+  "results": [
+    {
+      "subtype": "success",
+      "is_error": false,
+      "total_cost_usd": 0.509144,
+      "duration_ms": 95959,
+      "duration_api_ms": 128407,
+      "num_turns": 9,
+      "modelUsage": {
+        "claude-sonnet-5-5": {
+          "inputTokens": 53699,
+          "outputTokens": 10027,
+          "cacheReadInputTokens": 194144,
+          "cacheCreationInputTokens": 59427,
+          "webSearchRequests": 4,
+          "costUSD": 0.5047904,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 304,
+          "cacheCreationEphemeral5mInputTokens": 0,
+          "cacheCreationEphemeral1hInputTokens": 59427,
+          "canonicalModel": "claude-sonnet-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-haiku-5-5": {
+          "inputTokens": 27861,
+          "outputTokens": 3135,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.0043536,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 1834,
+          "cacheCreationEphemeral5mInputTokens": 0,
+          "cacheCreationEphemeral1hInputTokens": 0,
+          "canonicalModel": "claude-haiku-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      }
+    }
+  ],
+  "final_text": "حفظت التقرير في `report.md` في جذر الريبو. لم أعمل commit ولا push.\n\n**الخلاصة:**\n- **أسرع وظيفة نموًا:** AI Engineer، بنمو 143% سنويًا حسب LinkedIn. ومعها ثماني وظائف أخرى مشروحة بمهامها ومهاراتها ورواتبها.\n- **علاوة الأجر:** وظائف مهارات AI تدفع علاوة متوسطها 56% حسب PwC 2025.\n- **Prompt Engineer:** المسمى يتراجع، والمهارة نفسها اتدمجت في وظائف تانية.\n- **المصادر:** 12 مصدرًا بروابطها، منها WEF وPwC وKORE1 وForbes.\n\n**حدود التقرير:**\n- معظم أرقام الرواتب والنمو جاية من مدوّنات شركات توظيف ومصادر ثانوية، وبتختلف كتير بين مصدر والتاني.\n- مقال Forbes عن الأربع وظائف رجّع 403، فاعتمدت على ملخص نتائج البحث بتاعه.\n- أرقام LinkedIn نقلتها من مصادر ثانوية ولم أراجع التقرير الأصلي.\n- مفيش بيانات عن السوق المصري أو السعودي أو العربي.\n- لم أجد رقم راتب لمستشار AI ولا لـ Eval Engineer، فسبتهم من غير رقم بدل ما أخمّن.\n\nمكان الملف في الريبو حسب طلبك. قواعد التيم بتقول إن التقارير مكانها `_Findings` خارج الريبو. لو الريبو ده ريبو عميل، انقله هناك قبل أي commit."
+}

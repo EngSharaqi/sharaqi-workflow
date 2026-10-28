@@ -1,0 +1,7 @@
+{"event": "route", "entry": "do", "debug": false, "route": "ROUTE track=coding tier=planned mode=STANDARD plan=card approval=yes executor=inline review=reviewer·sonnet·low escalate=none checks=tests+lint seat=sonnet gate=hook", "why": "not tiny (behaviour changes); one file, under ~30 lines: below break-even", "facts": "critical=none(stated: no trigger word) behaviour=yes(stated: 'Implement') uncertain=no(assumed) files=1(stated: paths named: src/sheet.js) shape=feature(assumed) lines=10(assumed) checks=no(assumed)", "confidence": "high", "base": "ok", "ts": "2026-10-28T17:57:38Z", "v": "1.0.0-exp"}
+{"event": "approve", "found": true, "ts": "2026-10-28T17:58:08Z", "v": "1.0.0-exp"}
+{"event":"gate","ts":"2026-10-28T17:58:29Z","tool":"Write","decision":"allow","class":"ok","bench":"1"}
+{"event":"agent","ts":"2026-10-28T17:58:35Z","subagent_type":"sharaqi:implementer","model":"sonnet","effort":"high","escalate":"","background":"false","from_subagent":"","decision":"allow","reason":""}
+{"event":"gate","ts":"2026-10-28T17:58:35Z","tool":"Agent","decision":"allow","class":"ok","bench":"1"}
+{"event":"agent","ts":"2026-10-28T18:04:12Z","subagent_type":"sharaqi:reviewer","model":"sonnet","effort":"low","escalate":"","background":"false","from_subagent":"","decision":"allow","reason":""}
+{"event":"gate","ts":"2026-10-28T18:04:12Z","tool":"Agent","decision":"allow","class":"ok","bench":"1"}

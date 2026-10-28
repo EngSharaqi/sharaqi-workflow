@@ -1,0 +1,17 @@
+✔ C01 numbers, text, empty, clear (0.892917ms)
+✔ C02 case-insensitive references (0.390125ms)
+✔ C03 invalid references throw RangeError (0.178167ms)
+✔ C04 precedence and associativity (0.229375ms)
+✔ C05 empty cell is 0 when referenced (0.090792ms)
+✔ C06 direct reference returns text; operators on text are #VALUE! (0.086958ms)
+✔ C07 SUM MIN MAX COUNT over ranges and arguments (0.3255ms)
+✔ C08 IF is lazy and needs 3 arguments (0.40175ms)
+✔ C09 error kinds (0.132958ms)
+✔ C10 error propagation, first error left to right, ranges row by row (0.124416ms)
+✔ C11 cycles: static detection, propagation, recovery (0.113709ms)
+✔ C12 updates propagate, forward references resolve (0.063667ms)
+✔ C13 20,000-cell chain, shuffled, within 2 s (69.283125ms)
+✔ C14 floating point is plain arithmetic (0.084ms)
+ℹ tests 14
+ℹ pass 14
+ℹ fail 0

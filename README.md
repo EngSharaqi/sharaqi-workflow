@@ -17,6 +17,19 @@
 measures the decision, not finished tasks. Full numbers and limits:
 [benchmarks/v1.0/RESULTS.md](benchmarks/v1.0/RESULTS.md).</sub>
 
+| On 3 finished tasks, against plain Claude Code (Opus · medium) | Plugin | Plain | Δ |
+|---|---:|---:|---:|
+| 📝 Research report (AI-era jobs, 2026) | **$0.51** · 97 s | $2.35 · 254 s | **−78%** cost · −62% time |
+| 🧩 Medium code, hidden tests 22/22 both | **$0.26** · 77 s | $0.37 · 51 s | **−28%** cost · +52% time |
+| 🧠 Complex code, hidden tests 14/14 both | $0.91 · 551 s | **$0.84** · 199 s | +9% cost · +176% time |
+| **Total** | **$1.68** · 725 s | $3.55 · 504 s | **−53%** cost · +44% time |
+
+<sub>Six paid runs, one per arm per task, 2026-10-28, Claude Code 2.1.312. Cheaper overall,
+same correctness on code, slower on code. Most of the saving is the report, and the
+plugin's report is a third the length. Screenshots and limits:
+[Three finished tasks](#three-finished-tasks-v10-vs-plain) ·
+[benchmarks/e2e/RESULTS.md](benchmarks/e2e/RESULTS.md).</sub>
+
 A Claude Code plugin for development tasks. A prompt hook reads your task and routes it
 before the model sees it, with no model call. Sonnet runs the session. Haiku and Sonnet
 agents take bounded work. Opus comes in only on a logged escalation: a CRITICAL change,
@@ -35,11 +48,12 @@ As a plugin the command is `/sharaqi:sharaqi …`; the subcommand is the first w
 the arguments.
 
 > [!NOTE]
-> **v1.0.0-exp is experimental.** The routing step is measured (above). Finished tasks: one
-> run of one task so far, where v1.0 cost 50% less than plain Claude Code but skipped its
-> Opus review ([Cost and evidence](#cost-and-evidence)). On the earlier task benchmarks
-> (v0.6–v0.7.1, Opus seat) plain Claude Code was cheaper. A repeated end-to-end v1.0 task
-> benchmark is the next step. v0.9 stays reproducible from commit `a05e49d`.
+> **v1.0.0-exp is experimental.** The routing step is measured (above). Finished tasks, one
+> run each against plain Claude Code on Opus · medium: −78% cost on a research report, −28%
+> on a medium code task, +9% on a complex one; same hidden-test score on both code tasks,
+> but slower on both ([three finished tasks](#three-finished-tasks-v10-vs-plain)). On the
+> earlier task benchmarks (v0.6–v0.7.1, Opus seat) plain Claude Code was cheaper. v0.9
+> stays reproducible from commit `a05e49d`.
 
 ## What's new in v1.0
 
@@ -177,6 +191,44 @@ What it doesn't cover: no file was edited and no plan approved, so it measures t
 step, not finished work. The two CRITICAL cases stopped before their Opus review, so that
 cost isn't in the figure. One run per cell; v1.0's classifier was written with these cases
 visible.
+
+### Three finished tasks, v1.0 vs plain
+
+2026-10-28, Claude Code 2.1.312, sharaqi `2a7bca8`, one run per arm per task, the two arms
+of each task run at the same time. Plugin: `/sharaqi:sharaqi do <task>`, no model flags,
+`/sharaqi:sharaqi go` sent whenever a plan waited. Plain: the same text with
+`--model claude-opus-5-5 --effort medium`. Code was scored by hidden acceptance tests
+neither arm saw. [Full report](benchmarks/e2e/RESULTS.md) ·
+[raw records](benchmarks/e2e/results-2026-10-28/) · [tasks](benchmarks/e2e/tasks/)
+
+| Task | Plugin | Plain | Δ cost | Δ time | Hidden tests |
+|---|---:|---:|---:|---:|---|
+| Report: new AI-era jobs, 2026 | **$0.51** · 97 s | $2.35 · 254 s | **−78%** | **−62%** | — |
+| Medium code: filter/sort/paginate an API | **$0.26** · 77 s | $0.37 · 51 s | **−28%** | +52% | 22/22 · 22/22 |
+| Complex code: spreadsheet engine | $0.91 · 551 s | **$0.84** · 199 s | +9% | +176% | 14/14 · 14/14 |
+| **Total** | **$1.68** · 725 s | $3.55 · 504 s | **−53%** | +44% | 36/36 · 36/36 |
+
+- **Where it saved:** the session ran on Sonnet. $0 of Opus in the plugin arm, no
+  escalations. Most of the saving ($1.84 of $1.86) is the report task.
+- **Where it lost:** time on code. The plan, approval and review steps add wall time, and on
+  the complex task Sonnet wrote 2.4× the output tokens of Opus (337 s in the
+  `implementer · sonnet · high` subagent).
+- **The report isn't like for like:** the plugin's has 1,038 words and 12 sources (5
+  answer to curl), the plain one 3,259 words and 46 sources (41 answer). Nobody graded
+  either for accuracy.
+- One run per cell, and plan approval was instant; a person approving adds their time.
+
+![Dashboard: cost and time per task, both arms](benchmarks/e2e/screenshots/1-dashboard.png)
+
+<details>
+<summary>More screenshots: scoring output and each arm's final reply</summary>
+
+![Hidden tests and scoring, as printed](benchmarks/e2e/screenshots/2-hidden-tests.png)
+![Final replies, report task](benchmarks/e2e/screenshots/3-reply-report.png)
+![Final replies, medium code task](benchmarks/e2e/screenshots/4-reply-medium.png)
+![Final replies, complex code task](benchmarks/e2e/screenshots/5-reply-complex.png)
+
+</details>
 
 **One finished task, v1.0 vs plain** (2026-10-28, Claude Code 2.1.312, one run per arm,
 both arms at the same time): redesign the `/skills` page of a Next.js 14 site, keeping all

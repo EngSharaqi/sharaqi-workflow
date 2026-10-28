@@ -1,0 +1,759 @@
+diff --git a/src/sheet.js b/src/sheet.js
+index 9fab231..3d9b99b 100644
+--- a/src/sheet.js
++++ b/src/sheet.js
+@@ -1,10 +1,490 @@
+-// Spreadsheet engine. Not implemented yet.
++// Spreadsheet engine.
++//
++// Design:
++// - Cells are keyed by a numeric id, (row - 1) * 26 + col, so sorting ids gives
++//   row-major order (needed for left-to-right error precedence inside ranges).
++// - Formulas are parsed once on `set`; the parse records the static references
++//   (single cells and ranges) written anywhere in the formula.
++// - Formula values are computed lazily on `get` and cached. Invariant: a cached
++//   formula only depends on cached cells. `set` therefore invalidates the edited
++//   cell and, transitively, every cached formula that references it.
++// - Computing an uncached cell runs an iterative Tarjan SCC over the uncached
++//   formula cells it reaches. Tarjan emits SCCs dependencies-first, so each SCC
++//   can be resolved as soon as it is emitted: a multi-cell SCC or a self-loop is
++//   a cycle (#CYCLE! for all members), otherwise the single formula is evaluated
++//   against already-cached inputs. No recursion over the dependency graph, so
++//   long chains cannot overflow the stack.
++
++const COLS = 26;
++const MAX_ROW = 99999;
++
++class CellError {
++    constructor(code) {
++        this.code = code;
++    }
++}
++
++const PARSE = new CellError('#PARSE!');
++const NAME = new CellError('#NAME?');
++const REF = new CellError('#REF!');
++const VALUE = new CellError('#VALUE!');
++const DIV0 = new CellError('#DIV/0!');
++const CYCLE = new CellError('#CYCLE!');
++
++class ParseError extends Error {}
++
++// Returns {col, row} (col 0-based, row 1-based) or null if not a valid reference.
++function parseRef(text) {
++    const m = /^([A-Za-z])([1-9][0-9]{0,4})$/.exec(text);
++    if (!m) return null;
++    return { col: m[1].toUpperCase().charCodeAt(0) - 65, row: Number(m[2]) };
++}
++
++function idOf(col, row) {
++    return (row - 1) * COLS + col;
++}
++
++function refToId(ref) {
++    const p = typeof ref === 'string' ? parseRef(ref) : null;
++    if (!p) throw new RangeError(`Invalid cell reference: ${ref}`);
++    return idOf(p.col, p.row);
++}
++
++// ---------- tokenizer ----------
++
++function tokenize(src) {
++    const tokens = [];
++    let i = 0;
++    while (i < src.length) {
++        const ch = src[i];
++        if (/\s/.test(ch)) {
++            i++;
++            continue;
++        }
++        const rest = src.slice(i);
++        let m;
++        if ((m = /^(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?/.exec(rest))) {
++            tokens.push({ type: 'num', value: Number(m[0]) });
++        } else if ((m = /^[A-Za-z]+[0-9]+/.exec(rest))) {
++            tokens.push({ type: 'ref', text: m[0] });
++        } else if ((m = /^[A-Za-z]+/.exec(rest))) {
++            tokens.push({ type: 'name', text: m[0].toUpperCase() });
++        } else if ((m = /^(?:<=|>=|<>|[-+*/()<>=,:])/.exec(rest))) {
++            tokens.push({ type: 'op', text: m[0] });
++        } else {
++            throw new ParseError();
++        }
++        i += m[0].length;
++    }
++    return tokens;
++}
++
++// ---------- parser ----------
++// AST nodes:
++//   {t:'num', v} | {t:'ref', id|null} | {t:'range', box|null}
++//   {t:'neg', a} | {t:'bin', op, a, b} | {t:'fn', name, args}
++
++const CMP_OPS = new Set(['=', '<>', '<', '>', '<=', '>=']);
++const KNOWN_FNS = new Set(['SUM', 'MIN', 'MAX', 'COUNT', 'IF']);
++
++function parseFormula(src) {
++    const tokens = tokenize(src);
++    let pos = 0;
++    const refs = new Set();
++    const ranges = [];
++
++    const peek = (k = 0) => tokens[pos + k];
++    const isOp = (tok, text) => tok !== undefined && tok.type === 'op' && tok.text === text;
++    const expect = (text) => {
++        if (!isOp(peek(), text)) throw new ParseError();
++        pos++;
++    };
++
++    function refNode(text) {
++        const p = parseRef(text);
++        if (!p) return { t: 'ref', id: null };
++        const id = idOf(p.col, p.row);
++        refs.add(id);
++        return { t: 'ref', id };
++    }
++
++    function parseComparison() {
++        let a = parseAdditive();
++        while (peek() && peek().type === 'op' && CMP_OPS.has(peek().text)) {
++            const op = tokens[pos++].text;
++            a = { t: 'bin', op, a, b: parseAdditive() };
++        }
++        return a;
++    }
++
++    function parseAdditive() {
++        let a = parseMultiplicative();
++        while (isOp(peek(), '+') || isOp(peek(), '-')) {
++            const op = tokens[pos++].text;
++            a = { t: 'bin', op, a, b: parseMultiplicative() };
++        }
++        return a;
++    }
++
++    function parseMultiplicative() {
++        let a = parseUnary();
++        while (isOp(peek(), '*') || isOp(peek(), '/')) {
++            const op = tokens[pos++].text;
++            a = { t: 'bin', op, a, b: parseUnary() };
++        }
++        return a;
++    }
++
++    function parseUnary() {
++        if (isOp(peek(), '-')) {
++            pos++;
++            return { t: 'neg', a: parseUnary() };
++        }
++        return parsePrimary();
++    }
++
++    function parsePrimary() {
++        const tok = peek();
++        if (!tok) throw new ParseError();
++        pos++;
++        if (tok.type === 'num') return { t: 'num', v: tok.value };
++        if (tok.type === 'ref') {
++            // A range is only allowed as a whole function argument (see parseArg).
++            if (isOp(peek(), ':')) throw new ParseError();
++            return refNode(tok.text);
++        }
++        if (tok.type === 'name') return parseCall(tok.text);
++        if (isOp(tok, '(')) {
++            const e = parseComparison();
++            expect(')');
++            return e;
++        }
++        throw new ParseError();
++    }
++
++    function parseCall(name) {
++        expect('(');
++        const args = [];
++        if (isOp(peek(), ')')) {
++            pos++;
++        } else {
++            for (;;) {
++                args.push(parseArg());
++                if (isOp(peek(), ',')) {
++                    pos++;
++                    continue;
++                }
++                expect(')');
++                break;
++            }
++        }
++        if (name === 'IF' && args.length !== 3) throw new ParseError();
++        return { t: 'fn', name, args };
++    }
++
++    function parseArg() {
++        const a = peek(), colon = peek(1), b = peek(2), after = peek(3);
++        if (a && a.type === 'ref' && isOp(colon, ':') && b && b.type === 'ref'
++            && (isOp(after, ',') || isOp(after, ')'))) {
++            pos += 3;
++            const p = parseRef(a.text), q = parseRef(b.text);
++            if (!p || !q) return { t: 'range', box: null };
++            const box = {
++                c1: Math.min(p.col, q.col), c2: Math.max(p.col, q.col),
++                r1: Math.min(p.row, q.row), r2: Math.max(p.row, q.row),
++            };
++            ranges.push(box);
++            return { t: 'range', box };
++        }
++        return parseComparison();
++    }
++
++    const ast = parseComparison();
++    if (pos !== tokens.length) throw new ParseError();
++    return { ast, refs: [...refs], ranges };
++}
++
++function boxContains(box, id) {
++    const col = id % COLS, row = Math.floor(id / COLS) + 1;
++    return col >= box.c1 && col <= box.c2 && row >= box.r1 && row <= box.r2;
++}
++
++// ---------- Sheet ----------
++
+ export class Sheet {
++    constructor() {
++        // id -> {kind: 'const', value} | {kind: 'formula', ast, refs, ranges}
++        this.cells = new Map();
++        this.formulaIds = new Set();
++        this.cache = new Map(); // formula id -> computed value
++        this.refBy = new Map(); // cell id -> Set of formula ids referencing it directly
++        this.rangeFormulas = new Map(); // formula id -> ranges it references
++    }
++
+     set(ref, raw) {
+-        throw new Error('not implemented');
++        const id = refToId(ref);
++        if (typeof raw !== 'string') throw new TypeError('Cell content must be a string');
++
++        this.#unregister(id);
++
++        const trimmed = raw.trim();
++        if (raw === '') {
++            // empty: nothing stored
++        } else if (trimmed.startsWith('=')) {
++            let parsed = null;
++            try {
++                parsed = parseFormula(trimmed.slice(1));
++            } catch (e) {
++                if (!(e instanceof ParseError)) throw e;
++            }
++            if (parsed) {
++                this.cells.set(id, { kind: 'formula', ...parsed });
++                this.#register(id);
++            } else {
++                this.cells.set(id, { kind: 'const', value: PARSE });
++            }
++        } else if (trimmed !== '' && Number.isFinite(Number(trimmed))) {
++            this.cells.set(id, { kind: 'const', value: Number(trimmed) });
++        } else {
++            this.cells.set(id, { kind: 'const', value: raw });
++        }
++
++        this.#invalidate(id);
+     }
+ 
+     get(ref) {
+-        throw new Error('not implemented');
++        const id = refToId(ref);
++        const cell = this.cells.get(id);
++        if (!cell) return null;
++        let v = cell.kind === 'const' ? cell.value : this.#compute(id);
++        if (cell.kind === 'formula' && v === null) v = 0;
++        if (v instanceof CellError) return v.code;
++        if (Object.is(v, -0)) return 0;
++        return v;
++    }
++
++    #register(id) {
++        const cell = this.cells.get(id);
++        this.formulaIds.add(id);
++        for (const r of cell.refs) {
++            let s = this.refBy.get(r);
++            if (!s) this.refBy.set(r, (s = new Set()));
++            s.add(id);
++        }
++        if (cell.ranges.length) this.rangeFormulas.set(id, cell.ranges);
++    }
++
++    #unregister(id) {
++        const cell = this.cells.get(id);
++        if (!cell) return;
++        this.cells.delete(id);
++        if (cell.kind !== 'formula') return;
++        this.formulaIds.delete(id);
++        for (const r of cell.refs) {
++            const s = this.refBy.get(r);
++            s.delete(id);
++            if (s.size === 0) this.refBy.delete(r);
++        }
++        this.rangeFormulas.delete(id);
++    }
++
++    // Drop the cached value of `id` and of every cached formula that depends on
++    // it, transitively. Uncached formulas need no walk: by the cache invariant
++    // nothing cached depends on them.
++    #invalidate(id) {
++        this.cache.delete(id);
++        const work = [id];
++        while (work.length) {
++            const cur = work.pop();
++            const visit = (dep) => {
++                if (this.cache.has(dep)) {
++                    this.cache.delete(dep);
++                    work.push(dep);
++                }
++            };
++            const direct = this.refBy.get(cur);
++            if (direct) for (const dep of direct) visit(dep);
++            for (const [dep, ranges] of this.rangeFormulas) {
++                if (ranges.some((box) => boxContains(box, cur))) visit(dep);
++            }
++        }
++    }
++
++    // Ids of non-empty cells inside `box`, in row-major order.
++    #cellsInBox(box, pool) {
++        const out = [];
++        const area = (box.c2 - box.c1 + 1) * (box.r2 - box.r1 + 1);
++        if (area <= pool.size) {
++            for (let r = box.r1; r <= box.r2; r++) {
++                for (let c = box.c1; c <= box.c2; c++) {
++                    const id = idOf(c, r);
++                    if (pool.has(id)) out.push(id);
++                }
++            }
++        } else {
++            for (const id of pool.keys()) if (boxContains(box, id)) out.push(id);
++            out.sort((x, y) => x - y);
++        }
++        return out;
++    }
++
++    // Formula cells referenced by `id` whose value is not cached yet.
++    #pendingDeps(id) {
++        const cell = this.cells.get(id);
++        const out = [];
++        for (const r of cell.refs) {
++            if (this.formulaIds.has(r) && !this.cache.has(r)) out.push(r);
++        }
++        for (const box of cell.ranges) {
++            for (const r of this.#cellsInBox(box, this.formulaIds)) {
++                if (!this.cache.has(r)) out.push(r);
++            }
++        }
++        return out;
+     }
++
++    // Iterative Tarjan SCC from `start`, resolving each SCC as it is emitted.
++    #compute(start) {
++        if (this.cache.has(start)) return this.cache.get(start);
++
++        const index = new Map();
++        const low = new Map();
++        const stack = [];
++        const onStack = new Set();
++        const frames = [];
++        let counter = 0;
++
++        const enter = (v) => {
++            index.set(v, counter);
++            low.set(v, counter);
++            counter++;
++            stack.push(v);
++            onStack.add(v);
++            frames.push({ v, deps: this.#pendingDeps(v), i: 0 });
++        };
++
++        enter(start);
++        while (frames.length) {
++            const frame = frames[frames.length - 1];
++            if (frame.i < frame.deps.length) {
++                const w = frame.deps[frame.i++];
++                if (!index.has(w)) enter(w);
++                else if (onStack.has(w)) low.set(frame.v, Math.min(low.get(frame.v), index.get(w)));
++                continue;
++            }
++            frames.pop();
++            const v = frame.v;
++            if (frames.length) {
++                const parent = frames[frames.length - 1].v;
++                low.set(parent, Math.min(low.get(parent), low.get(v)));
++            }
++            if (low.get(v) !== index.get(v)) continue;
++
++            const scc = [];
++            let w;
++            do {
++                w = stack.pop();
++                onStack.delete(w);
++                scc.push(w);
++            } while (w !== v);
++
++            if (scc.length > 1 || frame.deps.includes(v)) {
++                for (const c of scc) this.cache.set(c, CYCLE);
++            } else {
++                this.cache.set(v, this.#eval(this.cells.get(v).ast));
++            }
++        }
++        return this.cache.get(start);
++    }
++
++    // Value of a cell as seen by a formula: number, string, CellError or null (empty).
++    #valueOf(id) {
++        const cell = this.cells.get(id);
++        if (!cell) return null;
++        return cell.kind === 'const' ? cell.value : this.cache.get(id);
++    }
++
++    #eval(node) {
++        switch (node.t) {
++            case 'num':
++                return node.v;
++            case 'ref':
++                return node.id === null ? REF : this.#valueOf(node.id);
++            case 'range':
++                return node.box === null ? REF : VALUE;
++            case 'neg': {
++                const a = toNumber(this.#eval(node.a));
++                return a instanceof CellError ? a : -a;
++            }
++            case 'bin':
++                return this.#evalBinary(node);
++            case 'fn':
++                return this.#evalCall(node);
++        }
++        throw new Error(`unknown node ${node.t}`);
++    }
++
++    #evalBinary(node) {
++        const ra = this.#eval(node.a);
++        if (ra instanceof CellError) return ra;
++        const rb = this.#eval(node.b);
++        if (rb instanceof CellError) return rb;
++        const a = toNumber(ra);
++        if (a instanceof CellError) return a;
++        const b = toNumber(rb);
++        if (b instanceof CellError) return b;
++        switch (node.op) {
++            case '+': return a + b;
++            case '-': return a - b;
++            case '*': return a * b;
++            case '/': return b === 0 ? DIV0 : a / b;
++            case '=': return a === b ? 1 : 0;
++            case '<>': return a !== b ? 1 : 0;
++            case '<': return a < b ? 1 : 0;
++            case '>': return a > b ? 1 : 0;
++            case '<=': return a <= b ? 1 : 0;
++            case '>=': return a >= b ? 1 : 0;
++        }
++        throw new Error(`unknown operator ${node.op}`);
++    }
++
++    #evalCall(node) {
++        if (!KNOWN_FNS.has(node.name)) return NAME;
++        if (node.name === 'IF') {
++            const cond = toNumber(this.#eval(node.args[0]));
++            if (cond instanceof CellError) return cond;
++            return this.#eval(cond !== 0 ? node.args[1] : node.args[2]);
++        }
++
++        // Collect numbers left to right; text and empty values are ignored.
++        const nums = [];
++        for (const arg of node.args) {
++            if (arg.t === 'range') {
++                if (arg.box === null) return REF;
++                for (const id of this.#cellsInBox(arg.box, this.cells)) {
++                    const v = this.#valueOf(id);
++                    if (v instanceof CellError) return v;
++                    if (typeof v === 'number') nums.push(v);
++                }
++            } else {
++                const v = this.#eval(arg);
++                if (v instanceof CellError) return v;
++                if (typeof v === 'number') nums.push(v);
++            }
++        }
++        switch (node.name) {
++            case 'SUM': return nums.reduce((s, x) => s + x, 0);
++            case 'COUNT': return nums.length;
++            case 'MIN': return nums.length ? nums.reduce((m, x) => Math.min(m, x)) : 0;
++            case 'MAX': return nums.length ? nums.reduce((m, x) => Math.max(m, x)) : 0;
++        }
++        throw new Error(`unknown function ${node.name}`);
++    }
++}
++
++// Operand coercion for operators, comparisons and IF conditions.
++function toNumber(v) {
++    if (v === null) return 0;
++    if (typeof v === 'string') return VALUE;
++    return v;
+ }
+diff --git a/test/sheet.test.js b/test/sheet.test.js
+new file mode 100644
+index 0000000..288e09a
+--- /dev/null
++++ b/test/sheet.test.js
+@@ -0,0 +1,255 @@
++import assert from 'node:assert/strict';
++import { describe, test } from 'node:test';
++
++import { Sheet } from '../src/sheet.js';
++
++function sheet(cells) {
++    const s = new Sheet();
++    for (const [ref, raw] of Object.entries(cells)) s.set(ref, raw);
++    return s;
++}
++
++function evalFormula(formula, cells = {}) {
++    const s = sheet(cells);
++    s.set('Z99999', formula);
++    return s.get('Z99999');
++}
++
++describe('references', () => {
++    test('are case-insensitive', () => {
++        const s = new Sheet();
++        s.set('a1', '5');
++        assert.equal(s.get('A1'), 5);
++        assert.equal(evalFormula('=a1*2', { A1: '4' }), 8);
++    });
++
++    test('invalid references throw RangeError', () => {
++        const s = new Sheet();
++        for (const ref of ['A0', 'AA1', 'A100000', '1A', '', 'A', 'A1.5', ' A1', undefined]) {
++            assert.throws(() => s.get(ref), RangeError, String(ref));
++            assert.throws(() => s.set(ref, '1'), RangeError, String(ref));
++        }
++        assert.equal(s.get('Z99999'), null);
++    });
++});
++
++describe('raw input', () => {
++    test('numbers, text, empty', () => {
++        const s = new Sheet();
++        s.set('A1', ' 3 ');
++        s.set('A2', '-2.5');
++        s.set('A3', '1e3');
++        s.set('A4', ' hello ');
++        s.set('A5', '   ');
++        s.set('A6', 'Infinity');
++        assert.equal(s.get('A1'), 3);
++        assert.equal(s.get('A2'), -2.5);
++        assert.equal(s.get('A3'), 1000);
++        assert.equal(s.get('A4'), ' hello ');
++        assert.equal(s.get('A5'), '   ');
++        assert.equal(s.get('A6'), 'Infinity');
++        assert.equal(s.get('A7'), null);
++        s.set('A1', '');
++        assert.equal(s.get('A1'), null);
++    });
++
++    test('text that looks like an error is still text', () => {
++        assert.equal(evalFormula('=A1', { A1: '#DIV/0!' }), '#DIV/0!');
++        assert.equal(evalFormula('=A1+1', { A1: '#DIV/0!' }), '#VALUE!');
++    });
++});
++
++describe('formulas', () => {
++    test('arithmetic and precedence', () => {
++        assert.equal(evalFormula('=1+2*3'), 7);
++        assert.equal(evalFormula('=(1+2)*3'), 9);
++        assert.equal(evalFormula('=10-4-3'), 3);
++        assert.equal(evalFormula('=24/4/2'), 3);
++        assert.equal(evalFormula('=-2*-3'), 6);
++        assert.equal(evalFormula('=--2'), 2);
++        assert.equal(evalFormula('= 3.5 + 0.5 '), 4);
++        assert.equal(evalFormula('=1+2=3'), 1);
++        assert.equal(evalFormula('=1<2<1'), 0); // (1<2)<1
++    });
++
++    test('comparisons', () => {
++        assert.equal(evalFormula('=2=2'), 1);
++        assert.equal(evalFormula('=2<>2'), 0);
++        assert.equal(evalFormula('=1<2'), 1);
++        assert.equal(evalFormula('=1>2'), 0);
++        assert.equal(evalFormula('=2<=2'), 1);
++        assert.equal(evalFormula('=1>=2'), 0);
++    });
++
++    test('references', () => {
++        assert.equal(evalFormula('=A1', { A1: 'hi' }), 'hi');
++        assert.equal(evalFormula('=(A1)', { A1: 'hi' }), 'hi');
++        assert.equal(evalFormula('=A1'), 0);
++        assert.equal(evalFormula('=A1+1'), 1);
++        assert.equal(evalFormula('=A1+B2', { A1: '2', B2: '=A1*10' }), 22);
++    });
++
++    test('functions', () => {
++        const cells = { A1: '1', B1: 'x', A2: '3', B2: '4', C1: '=A1+A2' };
++        assert.equal(evalFormula('=SUM(A1:B2)', cells), 8);
++        assert.equal(evalFormula('=sum(B2:A1, 10, A1)', cells), 19);
++        assert.equal(evalFormula('=COUNT(A1:C3)', cells), 4);
++        assert.equal(evalFormula('=COUNT(B1, A9, 2)', cells), 1);
++        assert.equal(evalFormula('=MIN(A1:B2)', cells), 1);
++        assert.equal(evalFormula('=MAX(A1:B2, -1)', cells), 4);
++        assert.equal(evalFormula('=MIN(B1, D1:D9)', cells), 0);
++        assert.equal(evalFormula('=MAX()'), 0);
++        assert.equal(evalFormula('=SUM()'), 0);
++        assert.equal(evalFormula('=SUM(A1:A1)', cells), 1);
++        assert.equal(evalFormula('=SUM(A1:Z99998)', cells), 12);
++    });
++
++    test('IF', () => {
++        assert.equal(evalFormula('=IF(1, 2, 3)'), 2);
++        assert.equal(evalFormula('=IF(0, 2, 3)'), 3);
++        assert.equal(evalFormula('=IF(-0.5, 2, 3)'), 2);
++        assert.equal(evalFormula('=IF(A1, 2, 3)'), 3);
++        assert.equal(evalFormula('=if(A1>1, A2, 3)', { A1: '5', A2: 'yes' }), 'yes');
++        assert.equal(evalFormula('=IF(1, 2, 1/0)'), 2);
++        assert.equal(evalFormula('=IF(0, 1/0, 3)'), 3);
++        assert.equal(evalFormula('=IF(1, 1/0, 3)'), '#DIV/0!');
++        assert.equal(evalFormula('=IF(A1, 2, 3)', { A1: 'x' }), '#VALUE!');
++    });
++});
++
++describe('errors', () => {
++    test('#PARSE!', () => {
++        for (const f of ['=', '=1+', '=(1', '=1)', '=A1:B2', '=SUM(A1:B2+1)', '=SUM((A1:B2))',
++            '=IF(1,2)', '=IF(1,2,3,4)', '=IF()', '=1 2', '=foo', '=SUM(1,)', '=+1', '=A1B', '=1$']) {
++            assert.equal(evalFormula(f), '#PARSE!', f);
++        }
++    });
++
++    test('#NAME?', () => {
++        assert.equal(evalFormula('=FOO(1)'), '#NAME?');
++        assert.equal(evalFormula('=1+avg(A1:A3)'), '#NAME?');
++    });
++
++    test('#REF!', () => {
++        assert.equal(evalFormula('=A0'), '#REF!');
++        assert.equal(evalFormula('=AA1+1'), '#REF!');
++        assert.equal(evalFormula('=A100000'), '#REF!');
++        assert.equal(evalFormula('=SUM(A1:AA2)'), '#REF!');
++    });
++
++    test('#VALUE!', () => {
++        assert.equal(evalFormula('=A1+1', { A1: 'x' }), '#VALUE!');
++        assert.equal(evalFormula('=-A1', { A1: 'x' }), '#VALUE!');
++        assert.equal(evalFormula('=A1=A1', { A1: 'x' }), '#VALUE!');
++    });
++
++    test('#DIV/0!', () => {
++        assert.equal(evalFormula('=1/0'), '#DIV/0!');
++        assert.equal(evalFormula('=1/A1'), '#DIV/0!');
++    });
++
++    test('propagation: first error left to right wins', () => {
++        assert.equal(evalFormula('=A0+1/0'), '#REF!');
++        assert.equal(evalFormula('=1/0+A0'), '#DIV/0!');
++        assert.equal(evalFormula('=A1*2', { A1: '=1/0' }), '#DIV/0!');
++        assert.equal(evalFormula('=SUM(1, A1, A2)', { A1: '=A0', A2: '=1/0' }), '#REF!');
++        // Range order is row by row: B1 comes before A2.
++        assert.equal(evalFormula('=SUM(A1:B2)', { A2: '=1/0', B1: '=A0' }), '#REF!');
++        assert.equal(evalFormula('=COUNT(A1)', { A1: '=FOO()' }), '#NAME?');
++        assert.equal(evalFormula('=A1', { A1: '=(' }), '#PARSE!');
++        assert.equal(evalFormula('=IF(A1, 1, 2)', { A1: '=1/0' }), '#DIV/0!');
++    });
++});
++
++describe('cycles', () => {
++    test('self reference', () => {
++        const s = sheet({ A1: '=A1' });
++        assert.equal(s.get('A1'), '#CYCLE!');
++        assert.equal(sheet({ A1: '=SUM(A1:B2)' }).get('A1'), '#CYCLE!');
++    });
++
++    test('every cell on the cycle, and dependents via propagation', () => {
++        const s = sheet({ A1: '=B1+1', B1: '=C1+1', C1: '=A1+1', D1: '=A1', E1: '5' });
++        for (const r of ['A1', 'B1', 'C1', 'D1']) assert.equal(s.get(r), '#CYCLE!', r);
++        assert.equal(s.get('E1'), 5);
++    });
++
++    test('detected regardless of values (IF branches, ranges, unknown functions)', () => {
++        assert.equal(sheet({ A1: '=IF(1, 2, B1)', B1: '=A1' }).get('B1'), '#CYCLE!');
++        assert.equal(sheet({ A1: '=IF(1, 2, B1)', B1: '=A1' }).get('A1'), '#CYCLE!');
++        assert.equal(sheet({ A1: '=COUNT(B1:B3)', B3: '=A1' }).get('A1'), '#CYCLE!');
++        assert.equal(sheet({ A1: '=FOO(B1)', B1: '=A1' }).get('A1'), '#CYCLE!');
++    });
++
++    test('dependent outside cycle that IF skips is not a cycle', () => {
++        const s = sheet({ A1: '=B1', B1: '=A1', C1: '=IF(1, 7, A1)' });
++        assert.equal(s.get('C1'), 7);
++    });
++
++    test('breaking and re-creating a cycle', () => {
++        const s = sheet({ A1: '=B1+1', B1: '=A1+1', C1: '=B1*2' });
++        assert.equal(s.get('C1'), '#CYCLE!');
++        s.set('A1', '10');
++        assert.equal(s.get('A1'), 10);
++        assert.equal(s.get('B1'), 11);
++        assert.equal(s.get('C1'), 22);
++        s.set('A1', '=C1');
++        assert.equal(s.get('B1'), '#CYCLE!');
++        assert.equal(s.get('C1'), '#CYCLE!');
++        s.set('B1', '');
++        assert.equal(s.get('A1'), 0);
++        assert.equal(s.get('C1'), 0);
++    });
++
++    test('cycle created through a range when a cell is filled in later', () => {
++        const s = sheet({ A1: '=SUM(B1:B5)', B2: '3' });
++        assert.equal(s.get('A1'), 3);
++        s.set('B4', '=A1');
++        assert.equal(s.get('A1'), '#CYCLE!');
++        s.set('B4', '4');
++        assert.equal(s.get('A1'), 7);
++    });
++});
++
++describe('recalculation', () => {
++    test('get reflects every set', () => {
++        const s = sheet({ A1: '1', A2: '=A1*2', A3: '=SUM(A1:A2)' });
++        assert.equal(s.get('A3'), 3);
++        s.set('A1', '5');
++        assert.equal(s.get('A3'), 15);
++        s.set('A2', 'text');
++        assert.equal(s.get('A3'), 5);
++        s.set('A1', '');
++        assert.equal(s.get('A3'), 0);
++        s.set('A3', '=A2');
++        assert.equal(s.get('A3'), 'text');
++    });
++
++    test('20,000-cell chain in any order, fast and without stack overflow', () => {
++        const start = Date.now();
++        const s = new Sheet();
++        const n = 20000;
++        const order = Array.from({ length: n }, (_, i) => i + 1);
++        // Deterministic shuffle.
++        let seed = 42;
++        for (let i = n - 1; i > 0; i--) {
++            seed = (seed * 1103515245 + 12345) % 2147483648;
++            const j = seed % (i + 1);
++            [order[i], order[j]] = [order[j], order[i]];
++        }
++        for (const r of order) s.set(`A${r}`, r === 1 ? '1' : `=A${r - 1}+1`);
++        assert.equal(s.get('A20000'), 20000);
++        s.set('A1', '101');
++        assert.equal(s.get('A20000'), 20100);
++        assert.equal(s.get('A10000'), 10100);
++        assert.ok(Date.now() - start < 2000, `took ${Date.now() - start}ms`);
++    });
++
++    test('long cycle does not overflow', () => {
++        const s = new Sheet();
++        for (let r = 1; r <= 20000; r++) s.set(`B${r}`, `=B${r === 20000 ? 1 : r + 1}`);
++        assert.equal(s.get('B1'), '#CYCLE!');
++        s.set('B20000', '7');
++        assert.equal(s.get('B1'), 7);
++    });
++});
