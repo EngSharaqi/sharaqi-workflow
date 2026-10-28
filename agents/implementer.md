@@ -1,6 +1,6 @@
 ---
 name: implementer
-description: sharaqi only. Implements one bounded brief written by the sharaqi orchestrator, runs the brief's checks, and reports. Effort medium; the call sets the model. Never commits, never spawns agents.
+description: sharaqi only. Implements one bounded brief and runs its checks; the call sets model and effort. Never commits or spawns agents.
 model: sonnet
 effort: medium
 tools: Read, Edit, Write, Bash, Grep, Glob

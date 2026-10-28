@@ -1,7 +1,7 @@
 {
   "name": "sharaqi",
-  "version": "0.9.0",
-  "description": "/sharaqi do <task>: Opus makes one cheap routing decision (plan or not, which model and effort implements, how much review), delegates to the cheapest capable rung under a hook-enforced model and effort ceiling, re-runs the checks, and reports only what it verified, with a token receipt. /sharaqi route <task> shows the decision without running it.",
+  "version": "1.0.0-exp",
+  "description": "Experimental v1.0. /sharaqi do <task>: a prompt hook routes the task from its text (no model call), Sonnet runs the session, cheaper agents take bounded work, and Opus comes in only on a logged escalation (CRITICAL review, checks failing twice, or judgement). /sharaqi route <task> shows the route; /sharaqi go approves a plan.",
   "author": {
     "name": "Mohamed A. Sharaqi"
   },

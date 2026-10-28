@@ -92,7 +92,7 @@ in [PLAIN-CODE-RESULTS.md](PLAIN-CODE-RESULTS.md).
 | | Sharaqi v0.9 (this file) | Plain Claude Code |
 |---|---|---|
 | Total cost | $2.9817 | $2.0657 |
-| Cost per case | $0.2347–0.4461 (median $0.2499) | $0.1792–0.1985 (median $0.1855) |
+| Cost per case | $0.2347–0.4461 (median $0.2499) | $0.1792–0.1985 (median $0.1873; first published as $0.1855, see [the correction](PLAIN-CODE-RESULTS.md#comparison-with-the-sharaqi-arm)) |
 | CLI time, total · median | 179.0 s · 13.5 s | 136.1 s · 12.9 s |
 | External wall-clock, total · median | not recorded | 161.7 s · 15.2 s |
 | Turns · tool calls · agents | 24 · 13 · 0 | 36 · 25 · 0 |

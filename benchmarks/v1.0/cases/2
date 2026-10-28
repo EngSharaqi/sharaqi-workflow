@@ -1,0 +1,1 @@
+Add CSV export to the orders table: a button, a serializer in src/export/csv.ts, and tests; 4 files, ~150 lines; the repo has vitest.

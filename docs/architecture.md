@@ -3,7 +3,59 @@
 How sharaqi is built, why, and what the measurements changed along the way.
 The README has the short version.
 
-## The shape
+## v1.0 (experimental): Sonnet seat, Opus on escalation
+
+From the LLM council of 2026-10-28: as long as Opus is the main loop, every feature the
+plugin adds costs more than plain Opus. v1.0 changes the seat. **Routing measured, tasks
+not**: on the 11-case three-arm routing benchmark v1.0 cost 54.9% less than plain Claude
+Code and took 36.5% less wall clock, with 11/11 routes
+([benchmarks/v1.0/RESULTS.md](../benchmarks/v1.0/RESULTS.md)). No finished task has been
+measured on v1.0.
+
+```
+/sharaqi do <task>
+  UserPromptSubmit hook (hooks/route-prompt.sh → scripts/classify.py, no model call)
+    text → facts (each stated or assumed) → scripts/route.py → ROUTE line
+    + BASE snapshot when the route plans + only this route's steps (references/routes/)
+  Sonnet 5.5 · medium (SKILL.md frontmatter; 1,672 B)
+    tiny / direct / ops: does it; planned / critical: plan, stop, wait for /sharaqi go
+    executors: inline · haiku (R2, R3, R8) · sonnet-high (R4, only when wide)
+    reviewer: Sonnet · low; Opus · medium/high only for a CRITICAL trigger
+  Opus, only with escalate=critical | failed-twice | reasoning (hooks/agent-audit.sh)
+```
+
+| What changed | Why | Verified how |
+|---|---|---|
+| `model: sonnet` in the skill | the seat's cache reads dominate cost (v0.4 audit, council) | stand-in API: every request of the `/sharaqi` turn is `claude-sonnet-5-5` · medium |
+| Routing in a prompt hook | v0.9 spent a full Opus turn judging facts and running route.py | `additionalContext` reaches the model on a `/plugin:skill` prompt (stand-in API); 11/11 cases route as registered (tests) |
+| SKILL.md 18,487 B → 1,672 B; per-route steps injected (119–1,358 B per file) | the skill text was paid on every turn | first request +24,513 B over plain in v0.9, +3,174 B in v1.0 (stand-in API, equal tool set) |
+| 7 agents → 3 (`implementer`, `reviewer`, `planner`) | the variants differed only in name and effort; the Agent tool takes `effort` per call (2.1.312) | `diff` of the files; the per-call effort reaches the subagent request |
+| Opus needs `escalate:<reason>` in the call's description | Opus must be auditable | hook blocks without it; logs every call |
+| `run_in_background: false` required | a background agent's result returns on a turn that runs on the session model (Opus) | stand-in API: background → `claude-opus-5-5` turn; foreground → Sonnet throughout; two foreground calls in one message started 0.01 s apart |
+| `/sharaqi go` approves a plan | the skill's model lasts only its own turn; a plain "yes" runs on Opus | stand-in API, `--resume`: the follow-up request was `claude-opus-5-5` |
+| Benchmark mode for the gate | `claude -p` has no statusline, so v0.9's gate blocked every Agent call | gate tests; stand-in run with and without it |
+| Gate re-reads a missing transcript | on the first tool call of a headless session the transcript doesn't exist yet | stand-in run: the first Agent call was blocked before, allowed after |
+| `▶`/`◀` lines, token receipt only with `--debug` | they were paid at the seat's output rate on every run | tests: no route's steps contain them unless debug |
+| `scripts/runrecord.py` | one record per run, the same accounting for every arm | the 22 published runs: transcript estimate equals Claude Code's cost (v0.9 exactly, plain within $0.00013) |
+
+**Classifier limits.** `scripts/classify.py` matches phrases, not meaning. Its unknowns
+fall to the safe side (behaviour changes, no checks, coding track, so plan and approval),
+and the seat corrects an `assumed` fact after its first reads by re-running route.py; a
+CRITICAL trigger can't be dropped. The 11 benchmark cases were visible while its rules
+were written. Of 15 prompts written afterwards, the first version misrouted three, two of
+them unsafe (a `DROP TABLE` without the deletion trigger; "instead of the email" taken
+as a writing task). Both are fixed and in the tests; more such misses are likely.
+
+**Break-even thresholds** (`route.py`: ~3 work turns for haiku, inline under ~30 lines in
+one file) were computed for an Opus seat. With a Sonnet seat inline turns cost less, so the
+true break-even is probably higher. Not re-measured.
+
+**Not verified**: an interactive session end to end (the hooks are the same; the gate
+there uses the statusline bridge); Sonnet 5.5 prices against Claude Code's `costUSD`
+(`prices.json` keeps `verified: false`; on the benchmark the estimate ran ~$0.0025 per run
+above the CLI cost); any cost or time saving on a finished task.
+
+## The shape (v0.9)
 
 ```
 /sharaqi do <task>

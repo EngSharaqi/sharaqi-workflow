@@ -1,0 +1,86 @@
+{
+  "run_id": "v1.0-7a-1",
+  "arm": "v1.0",
+  "version": "worktree-tree:c5d2f5f132e5456d2ee9331c47ecf3d396e2c4cc",
+  "case_id": "7a",
+  "session_id": "8e696c30-196c-4b5f-b19d-92571dbede8f",
+  "started_at": "2026-10-28T15:26:57Z",
+  "finished_at": "2026-10-28T15:27:28Z",
+  "wall_s": 30.9,
+  "cli_duration_ms": 28568,
+  "api_duration_ms": 28109,
+  "num_turns": 2,
+  "is_error": false,
+  "subtype": "success",
+  "terminal_reason": "completed",
+  "permission_denials": 0,
+  "cost": {
+    "actual_usd": 0.12314439999999999,
+    "actual_source": "claude -p total_cost_usd (includes subagents)",
+    "by_model": {
+      "claude-sonnet-5-5": {
+        "input": 6,
+        "output": 1264,
+        "cache_read": 68264,
+        "cache_write": 28627,
+        "cache_write_5m": 7228,
+        "cache_write_1h": 21399,
+        "cost_usd": 0.12314439999999999,
+        "cost_basis": "list"
+      }
+    },
+    "transcript_estimate_usd": 0.129971,
+    "estimate_label": "prices.json list rates; an estimate, not added to actual_usd",
+    "reconciliation_delta_usd": -0.006826,
+    "unpriced_requests": 0
+  },
+  "models": {
+    "orchestration": [
+      "claude-sonnet-5-5"
+    ],
+    "execution": [],
+    "review": [
+      "claude-sonnet-5-5"
+    ],
+    "planning": [],
+    "other_subagent": []
+  },
+  "delegation": {
+    "agent_calls": 1,
+    "parallel_groups": 0,
+    "max_parallel": 1,
+    "subagent_threads": 1,
+    "subagent_types": [
+      "sharaqi:reviewer"
+    ]
+  },
+  "route_printed": [],
+  "events": {
+    "route": {
+      "event": "route",
+      "entry": "review",
+      "debug": false,
+      "route": "ROUTE track=review tier=review mode=- plan=none approval=no executor=none review=reviewer·sonnet·low escalate=none checks=none scope=artifact fixes=ask seat=sonnet gate=hook",
+      "why": "document review against the user's requirements; read-only, fixes only after a yes",
+      "facts": "artifact=doc(stated: 'document')",
+      "confidence": "high",
+      "ts": "2026-10-28T15:27:00Z",
+      "v": "1.0.0-exp"
+    },
+    "route_errors": 0,
+    "agent_calls_logged": 1,
+    "agent_calls_blocked": 0,
+    "escalations": [],
+    "gate": {
+      "allow:ok": 1
+    }
+  },
+  "tests": null,
+  "repairs": null,
+  "exit_code": 0,
+  "status": "completed",
+  "unknown": [
+    "tests",
+    "repairs"
+  ]
+}

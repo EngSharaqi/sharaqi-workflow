@@ -1,0 +1,82 @@
+{
+  "run_id": "v1.0-8-1",
+  "arm": "v1.0",
+  "version": "worktree-tree:c5d2f5f132e5456d2ee9331c47ecf3d396e2c4cc",
+  "case_id": "8",
+  "session_id": "cb7d5754-047d-4e1d-bd32-385ebc05c8a3",
+  "started_at": "2026-10-28T15:28:18Z",
+  "finished_at": "2026-10-28T15:28:30Z",
+  "wall_s": 11.5,
+  "cli_duration_ms": 9158,
+  "api_duration_ms": 9035,
+  "num_turns": 1,
+  "is_error": false,
+  "subtype": "success",
+  "terminal_reason": "completed",
+  "permission_denials": 0,
+  "cost": {
+    "actual_usd": 0.0693463,
+    "actual_source": "claude -p total_cost_usd (includes subagents)",
+    "by_model": {
+      "claude-sonnet-5-5": {
+        "input": 2,
+        "output": 309,
+        "cache_read": 25363,
+        "cache_write": 15929,
+        "cache_write_5m": 0,
+        "cache_write_1h": 15929,
+        "cost_usd": 0.0693463,
+        "cost_basis": "list"
+      }
+    },
+    "transcript_estimate_usd": 0.071883,
+    "estimate_label": "prices.json list rates; an estimate, not added to actual_usd",
+    "reconciliation_delta_usd": -0.002536,
+    "unpriced_requests": 0
+  },
+  "models": {
+    "orchestration": [
+      "claude-sonnet-5-5"
+    ],
+    "execution": [],
+    "review": [],
+    "planning": [],
+    "other_subagent": []
+  },
+  "delegation": {
+    "agent_calls": 0,
+    "parallel_groups": 0,
+    "max_parallel": 0,
+    "subagent_threads": 0,
+    "subagent_types": []
+  },
+  "route_printed": [
+    "ROUTE track=mixed tier=planned mode=STANDARD plan=card approval=yes executor=inline review=reviewer·sonnet·low escalate=none checks=tests+lint writing=direct seat=sonnet gate=hook"
+  ],
+  "events": {
+    "route": {
+      "event": "route",
+      "entry": "route",
+      "debug": false,
+      "route": "ROUTE track=mixed tier=planned mode=STANDARD plan=card approval=yes executor=inline review=reviewer·sonnet·low escalate=none checks=tests+lint writing=direct seat=sonnet gate=hook",
+      "why": "code part: not tiny (behaviour changes); one file, under ~30 lines: below break-even; writing parts delivered directly, outside the plan",
+      "facts": "critical=none(stated: no trigger word) behaviour=yes(stated: 'Fix') uncertain=no(assumed) files=1(stated: paths named: src/pager.ts) shape=feature(assumed) lines=10(assumed) checks=yes(stated: 'tests exist')",
+      "confidence": "high",
+      "ts": "2026-10-28T15:28:21Z",
+      "v": "1.0.0-exp"
+    },
+    "route_errors": 0,
+    "agent_calls_logged": 0,
+    "agent_calls_blocked": 0,
+    "escalations": [],
+    "gate": {}
+  },
+  "tests": null,
+  "repairs": null,
+  "exit_code": 0,
+  "status": "completed",
+  "unknown": [
+    "tests",
+    "repairs"
+  ]
+}

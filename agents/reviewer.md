@@ -1,7 +1,7 @@
 ---
 name: reviewer
-description: sharaqi only. Read-only independent review of one task's own changes (BASE..AFTER snapshot diff) on three separate axes (spec, quality, security), or of a document on an explicit /sharaqi review. Returns findings; never edits.
-model: opus
+description: sharaqi only. Read-only review of one diff or document (spec, quality, security); the call sets model and effort. Never edits.
+model: sonnet
 effort: low
 tools: Read, Grep, Glob
 color: red

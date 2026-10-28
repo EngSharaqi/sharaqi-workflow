@@ -274,8 +274,9 @@ def print_phases(threads, requests, table):
     print("DOUBLE_READS: handoff %d%s · re-read in one thread %d%s" % (
         len(handoff), (" (" + ", ".join(handoff) + ")") if handoff else "",
         len(rereads), (" (" + ", ".join(rereads) + ")") if rereads else ""))
-    # Slices must write disjoint files (delegation.md); the orchestrator fixing a file after
-    # an implementer is a delta, not a conflict, so only subagent threads count.
+    # Slices must write disjoint files (references/routes/delegate.md); the orchestrator
+    # fixing a file after an implementer is a delta, not a conflict, so only subagent
+    # threads count.
     writers = {}
     for _, _, acts in threads[1:]:
         for p in acts["writes"]:
@@ -491,7 +492,12 @@ def context_mode(session, transcript):
         with open(bridge, encoding="utf-8") as fh:
             b = json.load(fh)
     except FileNotFoundError:
-        return context_unverified(tokens, fallback,
+        declared = benchmark_window()
+        if isinstance(declared, int):
+            return context_status(tokens, declared, max_pct, warn_pct,
+                                  "window declared (benchmark mode, SHARAQI_CONTEXT_WINDOW, %s)"
+                                  % model)
+        return context_unverified(tokens, fallback, declared or
                                   "no statusline bridge file for this session (references/setup.md)")
     except (OSError, ValueError):
         return context_unverified(tokens, fallback, "bridge file unreadable or not JSON")
@@ -502,15 +508,35 @@ def context_mode(session, transcript):
     if not isinstance(bmodel, str) or bare_model(bmodel) != bare_model(model):
         return context_unverified(tokens, fallback,
                                   "model mismatch (transcript %s, bridge %s)" % (model, bmodel))
+    return context_status(tokens, window, max_pct, warn_pct,
+                          "window verified (statusline, %s)" % model)
 
+
+def benchmark_window():
+    """The window a headless benchmark declares, or a reason string (None: not asked for).
+    Benchmark mode is SHARAQI_BENCHMARK=1 plus SHARAQI_CONTEXT_WINDOW=<tokens>: `claude -p`
+    has no statusline, so the window can't be verified there. The thresholds stay the same;
+    the line says the window was declared, never that it was verified."""
+    raw = os.environ.get("SHARAQI_CONTEXT_WINDOW")
+    if os.environ.get("SHARAQI_BENCHMARK") != "1":
+        return ("no statusline bridge file for this session (references/setup.md); "
+                "SHARAQI_CONTEXT_WINDOW applies only with SHARAQI_BENCHMARK=1") if raw else None
+    if raw is None:
+        return "benchmark mode needs SHARAQI_CONTEXT_WINDOW (the window in tokens)"
+    if not re.fullmatch(r"[1-9][0-9]{3,8}", raw.strip()):
+        return "SHARAQI_CONTEXT_WINDOW is not a token count (1000 or more)"
+    return int(raw)
+
+
+def context_status(tokens, window, max_pct, warn_pct, source):
     if tokens * 100 >= max_pct * window:
         status, code = "STOP", 4
     elif tokens * 100 >= warn_pct * window:
         status, code = "WARN", 3
     else:
         status, code = "OK", 0
-    print("CONTEXT %s%% · %d/%d tokens · window verified (statusline, %s) · %s"
-          % (fmt_pct(tokens, window), tokens, window, model, status))
+    print("CONTEXT %s%% · %d/%d tokens · %s · %s"
+          % (fmt_pct(tokens, window), tokens, window, source, status))
     return code
 
 

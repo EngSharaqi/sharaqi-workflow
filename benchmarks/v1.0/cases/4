@@ -1,0 +1,1 @@
+In src/auth/roles.ts, let the `viewer` role call the delete endpoint (one line).

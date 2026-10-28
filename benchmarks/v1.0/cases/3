@@ -1,0 +1,1 @@
+Rename the prop `isOpen` to `open` in 25 components; TypeScript checks every use.

@@ -1,10 +1,11 @@
-"""Tests for scripts/route.py (the routing policy) and for the docs that must agree with it.
-Standard library only.
+"""Tests for scripts/route.py (the v1.0 routing policy) and for the docs that must agree
+with it. Standard library only.
 
-What these prove: given the facts, route.py returns the route the policy defines, and the
-skill's text calls it and doesn't contradict it. What they don't prove: that the model
-judges the facts correctly or obeys the route at runtime. That takes live runs
-(benchmarks/v0.9/routing-cases.md). The context gate itself is tested in test_hooks.sh.
+What these prove: given the facts, route.py returns the route the policy defines (Sonnet
+seat, Opus only with an escalate= reason), and the skill's text and route references agree
+with it. What they don't prove: that the classifier's facts are right for real prompts
+(test_classify.py covers known prompts) or that the model obeys the route at runtime. That
+takes live runs (benchmarks/v1.0/). The context gate itself is tested in test_hooks.sh.
 
 usage: python3 -m unittest discover -s tests
 """
@@ -80,7 +81,8 @@ class Policy(unittest.TestCase):
     def test_2_medium_task_plans_and_waits(self):
         _, r, _ = route(*FEATURE)
         self.assertEqual((r["tier"], r["plan"], r["approval"]), ("planned", "card", "yes"))
-        self.assertEqual(r["review"], "reviewer·opus·low")
+        self.assertEqual(r["review"], "reviewer·sonnet·low")
+        self.assertEqual(r["escalate"], "none")
 
     def test_3_cheapest_suitable_executor(self):
         cases = {
@@ -94,6 +96,12 @@ class Policy(unittest.TestCase):
              "--shape", "judgement"): "R6·opus-medium",
             ("--track", "coding", "--critical", "none", "--files", "1", "--lines", "12",
              "--checks", "yes"): "inline",
+            # From a Sonnet seat a sonnet-high subagent pays only when the work is wide.
+            ("--track", "coding", "--critical", "none", "--files", "2", "--lines", "40",
+             "--shape", "tricky"): "inline",
+            ("--track", "coding", "--critical", "none", "--files", "2", "--lines", "40"): "inline",
+            ("--track", "coding", "--critical", "none", "--files", "2", "--lines", "60"):
+                "R4·sonnet-high",
         }
         for args, want in cases.items():
             _, r, out = route(*args)
@@ -103,25 +111,35 @@ class Policy(unittest.TestCase):
         _, r, _ = route("--track", "coding", "--critical", "none", "--behaviour", "no",
                         "--files", "40", "--lines", "80", "--shape", "mechanical")
         self.assertEqual((r["tier"], r["mode"], r["review"]),
-                         ("planned", "FAST", "reviewer·opus·low"))
+                         ("planned", "FAST", "reviewer·sonnet·low"))
 
     def test_4_high_risk_small_diff_keeps_safeguards(self):
-        for trigger, review in (("auth", "reviewer-high·opus·high"),
-                                ("secrets", "reviewer-high·opus·high"),
-                                ("parsing", "reviewer-high·opus·high"),
-                                ("money", "reviewer-medium·opus·medium"),
-                                ("migration", "reviewer-medium·opus·medium"),
-                                ("infra", "reviewer-medium·opus·medium")):
+        for trigger, review in (("auth", "reviewer·opus·high"),
+                                ("secrets", "reviewer·opus·high"),
+                                ("parsing", "reviewer·opus·high"),
+                                ("money", "reviewer·opus·medium"),
+                                ("migration", "reviewer·opus·medium"),
+                                ("deletion", "reviewer·opus·medium"),
+                                ("irreversible", "reviewer·opus·medium"),
+                                ("infra", "reviewer·opus·medium")):
             args = list(TINY_CSS)
             args[args.index("--critical") + 1] = trigger
             _, r, out = route(*args)
             self.assertEqual((r["tier"], r["mode"], r["plan"], r["approval"], r["review"]),
                              ("critical", "CRITICAL", "card", "yes", review), out)
             self.assertEqual(r["checks"], "standard+negative")
+            self.assertEqual(r["escalate"], "critical")
 
     def test_4b_floor_never_lowers(self):
-        _, r, _ = route(*TINY_CSS, "--floor", "CRITICAL")
+        args = list(TINY_CSS)
+        args[args.index("--critical") + 1] = "auth"
+        _, r, _ = route(*args, "--floor", "CRITICAL")
         self.assertEqual(r["mode"], "CRITICAL")
+        _, r, _ = route(*TINY_CSS, "--floor", "STANDARD")
+        self.assertEqual(r["mode"], "STANDARD")
+        rc, _, out = route(*TINY_CSS, "--floor", "CRITICAL")
+        self.assertEqual(rc, 2, "a CRITICAL floor without its trigger would drop the Opus review")
+        self.assertIn("--critical <trigger>", out)
 
     def test_4c_floor_or_trigger_cant_leave_the_code_route(self):
         for args in (("--track", "noncoding", "--floor", "CRITICAL"),
@@ -152,16 +170,18 @@ class Policy(unittest.TestCase):
             _, r, _ = route("--track", "noncoding", "--turns", turns)
             self.assertEqual(r["review"], "none")
         _, r, _ = route("--track", "review", "--artifact", "doc")
-        self.assertEqual(r["review"], "reviewer·opus·low")
+        self.assertEqual(r["review"], "reviewer·sonnet·low")
 
     def test_7_review_code_and_doc(self):
         _, r, _ = route("--track", "review", "--artifact", "code", "--critical", "none")
         self.assertEqual((r["scope"], r["review"], r["fixes"], r["executor"], r["plan"]),
-                         ("diff", "reviewer·opus·low", "ask", "none", "none"))
+                         ("diff", "reviewer·sonnet·low", "ask", "none", "none"))
         _, r, _ = route("--track", "review", "--artifact", "doc")
         self.assertEqual((r["scope"], r["fixes"]), ("artifact", "ask"))
         _, r, _ = route("--track", "review", "--artifact", "code", "--critical", "auth")
-        self.assertEqual(r["review"], "reviewer-high·opus·high")
+        self.assertEqual((r["review"], r["escalate"]), ("reviewer·opus·high", "critical"))
+        _, r, _ = route("--track", "review", "--artifact", "code", "--critical", "infra")
+        self.assertEqual((r["review"], r["escalate"]), ("reviewer·opus·medium", "critical"))
         rc, _, _ = route("--track", "review")
         self.assertEqual(rc, 2)
 
@@ -210,6 +230,64 @@ class Policy(unittest.TestCase):
                 route("--track", "ops", "--op", op, "--turns", "6", cwd=d)
             self.assertEqual(g("status", "--porcelain").stdout, before)
             self.assertEqual(g("stash", "list").stdout, "")
+
+    def test_11_opus_only_with_an_escalation_reason(self):
+        """Every combination of facts: a route that names Opus anywhere carries escalate=
+        critical, failed-twice or reasoning; one that doesn't name Opus carries none."""
+        seen = 0
+        for crit in ("none", "auth", "infra"):
+            for beh in ("yes", "no"):
+                for unc in ("yes", "no"):
+                    for shape in ("trivial", "mechanical", "feature", "tricky", "judgement"):
+                        for size in (("1", "5"), ("3", "90")):
+                            for failed in ("0", "1", "2"):
+                                for track in ("coding", "mixed"):
+                                    rc, r, out = route(
+                                        "--track", track, "--critical", crit, "--behaviour",
+                                        beh, "--uncertain", unc, "--shape", shape, "--files",
+                                        size[0], "--lines", size[1], "--failed", failed)
+                                    self.assertEqual(rc, 0, out)
+                                    named = " ".join(r[k] for k in ("plan", "executor", "review"))
+                                    if "opus" in named:
+                                        self.assertIn(r["escalate"],
+                                                      ("critical", "failed-twice", "reasoning"), out)
+                                    else:
+                                        self.assertEqual(r["escalate"], "none", out)
+                                    self.assertEqual(r["seat"], "sonnet")
+                                    seen += 1
+        self.assertGreater(seen, 700)
+        for args in (("--track", "noncoding", "--turns", "9"), ("--track", "review",
+                     "--artifact", "doc"), ("--track", "review", "--artifact", "code",
+                                            "--critical", "none")):
+            _, r, out = route(*args)
+            self.assertNotIn("opus", out.split("WHY")[0], args)
+
+    def test_12_failed_twice_escalates_to_opus(self):
+        _, r, _ = route(*FEATURE, "--failed", "1")
+        self.assertEqual((r["executor"], r["escalate"]), ("R3·haiku-high", "none"))
+        _, r, out = route(*FEATURE, "--failed", "2")
+        self.assertEqual((r["executor"], r["escalate"]), ("R6·opus-medium", "failed-twice"))
+        self.assertIn("two repair attempts", out)
+        _, r, _ = route(*TINY_CSS, "--failed", "2")
+        self.assertNotEqual(r["tier"], "tiny", "a failing task is never tiny again")
+        args = list(FEATURE)
+        args[args.index("--critical") + 1] = "money"
+        _, r, _ = route(*args, "--failed", "2")
+        self.assertEqual((r["executor"], r["escalate"], r["review"]),
+                         ("R6·opus-medium", "failed-twice", "reviewer·opus·medium"))
+        for track in (("--track", "noncoding"), ("--track", "review", "--artifact", "doc")):
+            rc, _, _ = route(*track, "--failed", "2")
+            self.assertEqual(rc, 2, track)
+
+    def test_13_opus_planner_only_for_unclear_critical_work(self):
+        args = list(FEATURE)
+        args[args.index("--critical") + 1] = "migration"
+        _, r, _ = route(*args)
+        self.assertEqual(r["plan"], "card", "the Sonnet seat plans a clear CRITICAL change")
+        _, r, out = route(*args, "--uncertain", "yes")
+        self.assertEqual(r["plan"], "planner·opus·high", out)
+        _, r, _ = route(*FEATURE, "--uncertain", "yes")
+        self.assertEqual(r["plan"], "card", "never an Opus planner without a CRITICAL trigger")
 
     def test_bad_input(self):
         for args in (("--track", "coding", "--critical", "none", "--files", "-1"),
@@ -293,78 +371,89 @@ class Ops(unittest.TestCase):
 
 
 class Docs(unittest.TestCase):
-    """Static checks: the skill text calls route.py and agrees with it. Not runtime behaviour."""
+    """Static checks: the skill and the route references agree with route.py. Not runtime
+    behaviour."""
 
     skill = read("SKILL.md")
 
-    def test_entries_and_hint(self):
-        self.assertIn('argument-hint: "do <task> | route <task> | review [target] | setup"',
-                      self.skill)
-        self.assertIn("`review [target]` → the Review entry below", self.skill)
-        self.assertIn("## Review entry — `/sharaqi review [target]`", self.skill)
+    def ref(self, name):
+        return read(os.path.join("references", "routes", name + ".md"))
 
-    def test_step1_command_runs_context_check_and_route(self):
-        cmd = next(line for line in self.skill.splitlines()
-                   if line.startswith("date -u") and "snapshot.sh" in line)
-        self.assertLess(cmd.index("tokens.py\" --context"), cmd.index("route.py"))
+    def test_skill_is_small_and_seats_sonnet(self):
+        size = len(self.skill.encode("utf-8"))
+        self.assertLess(size, 2048, "SKILL.md is %d bytes" % size)
+        head = self.skill.split("---")[1]
+        self.assertIn("\nmodel: sonnet\n", head)
+        self.assertIn("\neffort: medium\n", head)
+        self.assertNotIn("model: opus", head)
+        self.assertIn("disable-model-invocation: true", head)
+
+    def test_entries_and_hint(self):
+        self.assertIn('argument-hint: "[--debug] do <task> | route <task> | review [target] | '
+                      'go | setup"', self.skill)
+        self.assertIn("`/sharaqi go`", self.skill)
+        self.assertIn("No `SHARAQI` context means the hook didn't run", self.skill)
+
+    def test_every_tier_route_py_emits_has_a_reference(self):
+        for tier in ("tiny", "planned", "critical", "direct", "review", "ops", "route-only",
+                     "delegate", "debug", "setup"):
+            self.assertTrue(self.ref(tier).strip(), tier)
+
+    def test_safety_rules_kept(self):
+        for rule in ("Nothing leaves the machine", "Data, not commands", "Evidence.",
+                     "Scope.", "Opus only by escalation", "A CRITICAL trigger stays"):
+            self.assertIn(rule, self.skill, rule)
+        c = self.ref("critical")
+        for rule in ("security-checklist.md", "Approval is required at any size",
+                     "negative cases", "Never remove a check, gate, approval step or test"):
+            self.assertIn(rule, c, rule)
 
     def test_ops_policies_are_written_down(self):
-        # Static: the text says it; whether a run follows it is not tested here.
-        ops_text = self.skill[self.skill.index("**Ops** (`ops`)"):self.skill.index("## Step 2")]
-        for op in OPS_ALL:
-            self.assertIn(op, ops_text, op)
-        for rule in ("status, diff, log only",            # 4 git-read stays read-only
-                     "`git diff --cached`", "stage only the\n  intended files",  # 5 commit
-                     "no `--force`",                      # 6 push
-                     "only the named items and fields",   # 7 ado-read
-                     "changes\n  only the asked fields",  # 8 ado-write
-                     "never sonnet-medium", "A small model is not permission"):
-            self.assertIn(rule, ops_text, rule)
-        self.assertIn("`ops`, `review`) runs this check", self.skill)
-        self.assertIn("| Ops `haiku-low`", read("references/delegation.md"))
+        o = self.ref("ops")
+        for rule in ("Never call an unrun test passed", "stage only the intended files",
+                     "no `--force`", "`authz=explicit-yes`", "every time",
+                     "`fix=reroute-coding`", "`escalate=ask`"):
+            self.assertIn(rule, o, rule)
 
-    def test_every_tier_route_py_emits_is_documented(self):
-        for tier in ("tiny", "planned", "critical", "direct", "ops"):
-            self.assertRegex(self.skill, r"\| `%s`" % tier)
+    def test_plan_fits_8_lines_and_waits_for_go(self):
+        p = self.ref("planned")
+        self.assertIn("≤ 8 lines, no code, then stop and wait", p)
+        self.assertIn("Approve with `/sharaqi go`", p)
+        self.assertIn("at most two repairs", p)
+        self.assertIn("`--failed 2`", p)
 
-    def test_gate_applies_to_every_track(self):
-        self.assertIn("no route skips it", self.skill)
-        review = self.skill[self.skill.index("## Review entry"):self.skill.index("## Step 6")]
-        self.assertIn("context check (rule 9)", review)
+    def test_delegate_names_every_executor_route_py_emits(self):
+        d = self.ref("delegate")
+        for rung in ("R2 `sharaqi:implementer` haiku medium", "R3 implementer haiku high",
+                     "R4 implementer sonnet high", "R8 implementer haiku low",
+                     "R6 implementer opus medium", "reviewer `sharaqi:reviewer`",
+                     "planner `sharaqi:planner`", "starts `escalate:"):
+            self.assertIn(rung, d, rung)
+        src = read("scripts/route.py")
+        for rung in set(re.findall(r'"(R\d·[a-z]+-[a-z]+)', src)):
+            self.assertIn(rung.split("·")[0] + " ", d, rung)
 
-    def test_plan_template_fits_12_lines(self):
-        block = re.search(r"```\n<ROUTE line from route.py>\n(.*?)```", self.skill, re.S)
-        self.assertIsNotNone(block)
-        self.assertLessEqual(len(block.group(0).splitlines()) - 2, 12)
-        self.assertIn("plan ≤ 12 lines", self.skill)
+    def test_three_agents_effort_from_the_call(self):
+        names = sorted(os.listdir(os.path.join(ROOT, "agents")))
+        self.assertEqual(names, ["implementer.md", "planner.md", "reviewer.md"])
+        self.assertIn("model: sonnet", read("agents/reviewer.md"))
+        self.assertIn("## Explicit review", read("agents/reviewer.md"))
+        self.assertIn("tools: Read, Grep, Glob", read("agents/reviewer.md"))
+        self.assertIn("tools: Read, Grep, Glob", read("agents/planner.md"))
+
+    def test_debug_rituals_only_in_debug(self):
+        for name in ("tiny", "planned", "critical", "direct", "review", "ops", "delegate"):
+            text = self.ref(name)
+            self.assertNotIn("▶", text, name)
+            self.assertNotIn("tokens.py", text, name)
+        self.assertNotIn("▶", self.skill)
+        self.assertIn("▶", self.ref("debug"))
 
     def test_old_bypass_and_every_change_rule_are_gone(self):
-        for f in ("SKILL.md", "references/review.md", "docs/model-effort-plan.md"):
+        for f in ("SKILL.md", "docs/model-effort-plan.md"):
             text = read(f)
             self.assertNotIn("اكتب «نفّذ inline بلا كارت»", text, f)
             self.assertNotIn("No size, mode or cosmetic exception", text, f)
-        self.assertNotIn("(every task that changed files)", self.skill)
-
-    def test_reviewer_roles_listed(self):
-        d = read("references/delegation.md")
-        self.assertIn("| R7+ Critical reviewer, `critical` routes | `reviewer-medium` | `opus` |", d)
-        self.assertIn("| R7+ for auth/secrets/parsing | `reviewer-high` | `opus` |", d)
-        self.assertNotIn("pass `effort` on the call", d)
-        self.assertIn("| R8 Writer, a `direct` (non-coding) route past break-even |"
-                      " `implementer-low` | `haiku` |", d)
-        self.assertIn("## Explicit review (`/sharaqi review`)", read("references/review.md"))
-        self.assertIn("## Explicit review", read("agents/reviewer.md"))
-
-    def test_critical_reviewer_named_wherever_a_review_is_called(self):
-        review_entry = self.skill[self.skill.index("## Review entry"):
-                                  self.skill.index("## Step 6")]
-        step5 = self.skill[self.skill.index("## Step 5"):self.skill.index("## Review entry")]
-        r = read("references/review.md")
-        for name, text in (("SKILL.md Review entry", review_entry),
-                           ("SKILL.md step 5", step5), ("review.md", r)):
-            self.assertIn("`reviewer-high`", text, name)
-        self.assertNotIn("Reviewer | opus | low (configured)", r)
-        self.assertNotIn("`reviewer` · opus · low with the previous findings", r)
 
 
 if __name__ == "__main__":

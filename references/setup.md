@@ -79,9 +79,15 @@ one; if an editor integration doesn't run it, the gate stays blocked there
 (check with `tokens.py --context`). The reading counts the context up to the
 last API call, not tool output since. Subagents' own contexts aren't
 measured. The gate's 35% warning goes to the hook's stderr, which the model
-doesn't see on an allowed call; the model sees it only from its own
-`tokens.py --context` checks (SKILL.md rule 9). Nothing runs `/compact` for
+doesn't see on an allowed call; v1.0 has the model run no context checks of its
+own, so the warning is in the events log only. Nothing runs `/compact` for
 you: the gate stops work, you compact.
+
+Headless runs (`claude -p`) draw no statusline, so the window can't be verified
+there. A benchmark declares it instead: `SHARAQI_BENCHMARK=1` with
+`SHARAQI_CONTEXT_WINDOW=<tokens>`. The thresholds stay the same and the gate
+says the window was declared, not verified. `SHARAQI_CONTEXT_WINDOW` alone does
+nothing. Don't set either in an interactive session; use the bridge.
 
 ## 5. Auto-compact at 40% (global, optional)
 

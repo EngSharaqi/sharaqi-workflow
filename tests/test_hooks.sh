@@ -53,19 +53,20 @@ for P in $parsers; do
     j="{\"tool_input\":{\"model\":\"$1\",\"subagent_type\":\"$2\"$extra,\"prompt\":\"x\"}}"
     req_exit "$j"
   }
-  check "$t file: haiku + implementer-high"   0 "$(sa haiku sharaqi:implementer-high)"
+  check "$t file: haiku + implementer high"   0 "$(sa haiku sharaqi:implementer high)"
   check "$t file: haiku + implementer"        0 "$(sa haiku sharaqi:implementer)"
-  check "$t file: haiku + implementer-low"    0 "$(sa haiku sharaqi:implementer-low)"
-  check "$t file: sonnet + implementer-high"  0 "$(sa sonnet sharaqi:implementer-high)"
-  check "$t file: opus + implementer-high"    0 "$(sa opus sharaqi:implementer-high)"
+  check "$t file: haiku + implementer low"    0 "$(sa haiku sharaqi:implementer low)"
+  check "$t file: sonnet + implementer high"  0 "$(sa sonnet sharaqi:implementer high)"
+  check "$t file: opus + implementer high"    0 "$(sa opus sharaqi:implementer high)"
+  check "$t file: opus + reviewer high"       0 "$(sa opus sharaqi:reviewer high)"
   check "$t file: opus + planner"             0 "$(sa opus sharaqi:planner)"
   check "$t file: haiku + planner"            0 "$(sa haiku sharaqi:planner)"
-  check "$t file: call effort wins (lower)"   0 "$(sa haiku sharaqi:implementer-high low)"
-  check "$t file: call effort wins (higher)"  2 "$(sa sonnet sharaqi:implementer-low xhigh)"
+  check "$t file: call effort wins (lower)"   0 "$(sa haiku sharaqi:planner low)"
+  check "$t file: call effort wins (higher)"  2 "$(sa sonnet sharaqi:implementer xhigh)"
   check "$t file: unknown sharaqi agent"      0 "$(sa haiku sharaqi:nope)"
-  check "$t file: no prefix, not looked up"   0 "$(sa haiku implementer-high)"
-  check "$t file: path in name ignored"       0 "$(sa haiku 'sharaqi:../agents/implementer-high')"
-  check "$t file: still needs a model"        2 "$(req_exit '{"tool_input":{"subagent_type":"sharaqi:implementer-low","prompt":"x"}}')"
+  check "$t file: no prefix, not looked up"   0 "$(sa haiku implementer)"
+  check "$t file: path in name ignored"       0 "$(sa haiku 'sharaqi:../agents/implementer')"
+  check "$t file: still needs a model"        2 "$(req_exit '{"tool_input":{"subagent_type":"sharaqi:implementer","prompt":"x"}}')"
   check "$t pretty-printed"       2 "$(cap_exit $'{"tool_input":{\n  "model": "fable"\n}}')"
   check "$t unknown effort"       2 "$(cap_exit '{"tool_input":{"model":"opus","effort":"ultra"}}')"
   # --- allowed
@@ -124,26 +125,26 @@ rm "$plug/scripts/prices.json"
 check "missing prices.json: defaults, opus xhigh"          2 "$(pcap '{"tool_input":{"model":"opus","effort":"xhigh"}}')"
 check "missing prices.json: defaults, opus high ok"        0 "$(pcap '{"tool_input":{"model":"opus","effort":"high"}}')"
 
-# --- agent files: each one's effort is within the ceiling for every model delegation.md pairs
-# it with (checked through the hook), and the implementer variants differ only in name/effort.
-pairs=$(awk -F'|' '/^## Rung → call/{on=1; next} /^## /{on=0} on && /^\| / && $3 ~ /`/ && $3 !~ /subagent_type/ {
-  a=$3; m=$4; gsub(/[` ]/, "", a); n=split(m, w, "`"); for (i=2; i<=n; i+=2) print a, w[i] }' \
-  "$root/references/delegation.md")
-check "delegation.md rung table parsed" yes "$([ "$(printf '%s\n' "$pairs" | wc -l | tr -d ' ')" -ge 8 ] && echo yes || echo no)"
-while read -r a m; do
-  [ -f "$root/agents/$a.md" ] || { check "rung table: agents/$a.md exists" yes no; continue; }
-  j="{\"tool_input\":{\"model\":\"$m\",\"subagent_type\":\"sharaqi:$a\",\"prompt\":\"x\"}}"
-  check "rung table: $a with $m within ceiling" 0 "$(req_exit "$j")"
+# --- agent files (v1.0: one implementer, one reviewer, one planner; effort comes from the call).
+# Every executor/reviewer pairing references/routes/delegate.md names is within the ceiling,
+# checked through the hook with the call's effort.
+check "agents: three files" "implementer.md planner.md reviewer.md" "$(ls "$root/agents" | tr '\n' ' ' | sed 's/ $//')"
+pairs=$(grep -oE '(implementer`?|planner`?) (haiku|sonnet|opus) (low|medium|high)' \
+  "$root/references/routes/delegate.md" | tr -d '`' | sed 's/^sharaqi://')
+check "delegate.md pairings parsed" 5 "$(printf '%s\n' "$pairs" | wc -l | tr -d ' ')"
+ceil() { # agent model effort; JSON in a variable: a literal "{a,b}" inside "$(...)" brace-expands
+  local j="{\"tool_input\":{\"model\":\"$2\",\"effort\":\"$3\",\"subagent_type\":\"sharaqi:$1\",\"prompt\":\"x\"}}"
+  req_exit "$j"
+}
+while read -r a m e; do
+  check "delegate.md: $a $m $e within ceiling" 0 "$(ceil "$a" "$m" "$e")"
 done <<<"$pairs"
-body() { grep -v -e '^name:' -e '^description:' -e '^effort:' "$1"; }
-for v in low high; do
-  check "implementer-$v body equals implementer" "" "$(diff <(body "$root/agents/implementer.md") <(body "$root/agents/implementer-$v.md"))"
-  check "implementer-$v effort" "$v" "$(sed -n 's/^effort: //p' "$root/agents/implementer-$v.md")"
+for e in low medium high; do
+  for m in haiku sonnet opus; do
+    check "reviewer $m $e within ceiling" 0 "$(ceil reviewer "$m" "$e")"
+  done
 done
-for v in medium high; do
-  check "reviewer-$v body equals reviewer" "" "$(diff <(body "$root/agents/reviewer.md") <(body "$root/agents/reviewer-$v.md"))"
-  check "reviewer-$v effort" "$v" "$(sed -n 's/^effort: //p' "$root/agents/reviewer-$v.md")"
-done
+check "planner opus high within ceiling" 0 "$(ceil planner opus high)"
 
 # --- --in-run: inert unless session-hints.sh marked this session as a /sharaqi run
 sid="test-$$"
@@ -415,6 +416,113 @@ for p in "/sharaqi review" "/sharaqi review src/a.ts" "/sharaqi:sharaqi review H
   rm -f "$gate_run_f"
 done
 
+# --- context gate, benchmark mode: a headless run declares the window; thresholds unchanged
+rm -f "$tmp/sharaqi-state/$gsid.ctx"
+ev_f="$tmp/sharaqi-state/$gsid.events.jsonl"; rm -f "$ev_f"
+mk_transcript "$ctx_t" 1000
+check "bench: no window declared, no bench: blocks"   2 "$(gate_exit "$(gate_payload)")"
+check "bench: window without bench mode: blocks"      2 "$(SHARAQI_CONTEXT_WINDOW=200000 gate_exit "$(gate_payload)")"
+check "bench: window without bench mode says so"    yes "$(has "$(SHARAQI_CONTEXT_WINDOW=200000 gate_err "$(gate_payload)")" "applies only with SHARAQI_BENCHMARK=1")"
+check "bench: bench mode without window: blocks"      2 "$(SHARAQI_BENCHMARK=1 gate_exit "$(gate_payload)")"
+check "bench: bench mode without window says so"    yes "$(has "$(SHARAQI_BENCHMARK=1 gate_err "$(gate_payload)")" "benchmark mode needs SHARAQI_CONTEXT_WINDOW")"
+check "bench: garbage window blocks"                  2 "$(SHARAQI_BENCHMARK=1 SHARAQI_CONTEXT_WINDOW=lots gate_exit "$(gate_payload)")"
+check "bench: declared window, OK allows"             0 "$(SHARAQI_BENCHMARK=1 SHARAQI_CONTEXT_WINDOW=200000 gate_exit "$(gate_payload)")"
+mk_transcript "$ctx_t" 80000
+check "bench: declared window, STOP still blocks"     2 "$(SHARAQI_BENCHMARK=1 SHARAQI_CONTEXT_WINDOW=200000 gate_exit "$(gate_payload)")"
+check "bench: line says declared, not verified"     yes "$(has "$(SHARAQI_BENCHMARK=1 SHARAQI_CONTEXT_WINDOW=200000 gate_err "$(gate_payload)")" "window declared (benchmark mode")"
+mk_bridge "$gsid" 1000000
+check "bench: a real bridge wins over the declared window" 0 "$(SHARAQI_BENCHMARK=1 SHARAQI_CONTEXT_WINDOW=200000 gate_exit "$(gate_payload)")"
+rm -f "$tmp/sharaqi-state/$gsid.ctx"
+# events: every decision is logged with a class, outside the model's context
+rm -f "$ev_f"
+mk_transcript "$ctx_t" 1000
+gate_exit "$(gate_payload)" >/dev/null
+SHARAQI_BENCHMARK=1 SHARAQI_CONTEXT_WINDOW=200000 gate_exit "$(gate_payload)" >/dev/null
+mk_transcript "$ctx_t" 80000
+SHARAQI_BENCHMARK=1 SHARAQI_CONTEXT_WINDOW=200000 gate_exit "$(gate_payload)" >/dev/null
+printf '{"type":"user","timestamp":"2026-01-01T10:00:00Z"}\n' > "$ctx_t"
+SHARAQI_BENCHMARK=1 SHARAQI_CONTEXT_WINDOW=200000 gate_exit "$(gate_payload)" >/dev/null
+check "events: one line per decision" 4 "$(wc -l < "$ev_f" | tr -d ' ')"
+check "events: classes in order" "block:unverified-window allow:ok block:stop block:unverified-transcript" \
+  "$(python3 -I -c 'import json,sys; print(" ".join(d["decision"]+":"+d["class"] for d in map(json.loads, open(sys.argv[1]))))' "$ev_f")"
+check "events: tool recorded" Edit "$(head -1 "$ev_f" | python3 -I -c 'import json,sys; print(json.load(sys.stdin)["tool"])')"
+# no usage entry yet: re-read before giving up (the transcript is still being written)
+printf '{"type":"user","timestamp":"2026-01-01T10:00:00Z"}\n' > "$ctx_t"
+( sleep 0.5; mk_transcript "$ctx_t" 1000 ) &
+check "gate: usage that appears late is waited for" 0 "$(SHARAQI_BENCHMARK=1 SHARAQI_CONTEXT_WINDOW=200000 gate_exit "$(gate_payload)")"
+wait
+
+# --- agent-audit.sh: Opus only with an escalation reason; every call logged
+audit="$root/hooks/agent-audit.sh"
+asid="audit-$$"
+a_ev="$tmp/sharaqi-state/$asid.events.jsonl"
+apay() { # model [description] [effort] [run_in_background: false|true|omit]
+  local bg=',"run_in_background":false'
+  case "${4:-false}" in true) bg=',"run_in_background":true' ;; omit) bg="" ;; esac
+  printf '{"session_id":"%s","tool_name":"Agent","tool_input":{"model":"%s","effort":"%s","subagent_type":"sharaqi:reviewer","description":"%s","prompt":"SECRET-PROMPT-TEXT"%s}}' \
+    "$asid" "$1" "${3:-medium}" "${2:-review diff}" "$bg"
+}
+audit_exit() { printf '%s' "$1" | bash "$audit" "${@:2}" >/dev/null 2>&1; echo $?; }
+check "audit: not a run, opus without reason: allowed (--in-run)" 0 "$(audit_exit "$(apay opus)" --in-run)"
+check "audit: not a run: nothing logged" no "$([ -f "$a_ev" ] && echo yes || echo no)"
+printf '{"session_id":"%s","prompt":"/sharaqi do x"}' "$asid" | bash "$hints" prompt >/dev/null
+check "audit: opus without escalate blocked"       2 "$(audit_exit "$(apay opus)" --in-run)"
+check "audit: full opus id without escalate"       2 "$(audit_exit "$(apay claude-opus-5-5)" --in-run)"
+check "audit: unknown escalate reason blocked"     2 "$(audit_exit "$(apay opus 'escalate:long-task review')" --in-run)"
+check "audit: escalate mid-description blocked"    2 "$(audit_exit "$(apay opus 'review escalate:critical')" --in-run)"
+for r in critical failed-twice reasoning; do
+  check "audit: opus escalate:$r allowed" 0 "$(audit_exit "$(apay opus "escalate:$r review" high)" --in-run)"
+done
+check "audit: sonnet needs no reason" 0 "$(audit_exit "$(apay sonnet)" --in-run)"
+check "audit: haiku needs no reason"  0 "$(audit_exit "$(apay haiku)" --in-run)"
+for P in $parsers; do
+  [ "$P" = none ] && continue
+  check "audit [$P]: background omitted blocked" 2 "$(SHARAQI_JSON_PARSER=$P audit_exit "$(apay sonnet 'review' low omit)" --in-run)"
+  check "audit [$P]: background true blocked"    2 "$(SHARAQI_JSON_PARSER=$P audit_exit "$(apay haiku 'review' low true)" --in-run)"
+  check "audit [$P]: foreground allowed"         0 "$(SHARAQI_JSON_PARSER=$P audit_exit "$(apay haiku 'review' low)" --in-run)"
+done
+check "audit: background message names the fix" yes "$(has "$(printf '%s' "$(apay sonnet x low omit)" | bash "$audit" --in-run 2>&1 >/dev/null)" "run_in_background: false")"
+check "audit: block message names the fix" yes "$(has "$(printf '%s' "$(apay opus)" | bash "$audit" --in-run 2>&1 >/dev/null)" "escalate:critical")"
+nparsers=$(printf '%s\n' $parsers | grep -vc '^none$')
+check "audit: one log line per call" $((11 + 3 * nparsers)) "$(wc -l < "$a_ev" | tr -d ' ')"
+want="block block block block allow allow allow allow allow"
+for _ in $(seq "$nparsers"); do want="$want block block allow"; done
+check "audit: log is JSON with decisions" "$want block block" \
+  "$(python3 -I -c 'import json,sys; print(" ".join(json.loads(l)["decision"] for l in open(sys.argv[1])))' "$a_ev")"
+check "audit: prompt never logged" 0 "$(grep -c 'SECRET-PROMPT-TEXT' "$a_ev")"
+check "audit: escalation recorded" yes "$(grep -q '"model":"opus","effort":"high","escalate":"failed-twice","background":"false","from_subagent":"","decision":"allow"' "$a_ev" && echo yes || echo no)"
+check "audit: block reasons recorded" "escalation background" \
+  "$(python3 -I -c 'import json,sys; r=[json.loads(l).get("reason") for l in open(sys.argv[1])]; print(r[0], r[9])' "$a_ev")"
+check "audit: unreadable input in a run: allowed, logged unchecked" 0 \
+  "$(printf '{"session_id":"%s","tool_input":{' "$asid" | bash "$audit" --in-run >/dev/null 2>&1; echo $?)"
+check "audit: unchecked logged" yes "$(tail -1 "$a_ev" | grep -q '"decision":"unchecked"' && echo yes || echo no)"
+rm -f "$tmp/sharaqi-state/$asid.run"
+
+# --- route-prompt.sh: routes /sharaqi prompts, never blocks, says so when it can't
+rp="$root/hooks/route-prompt.sh"
+rsid="route-$$"
+rp_out() { printf '%s' "$1" | bash "$rp" 2>/dev/null; }
+rp_ctx() { rp_out "$1" | python3 -I -c 'import json,sys
+t=sys.stdin.read().strip()
+print(json.loads(t)["hookSpecificOutput"]["additionalContext"] if t else "")'; }
+check "route hook: other prompt passes, no output" "" "$(rp_out "{\"session_id\":\"$rsid\",\"prompt\":\"hello\"}")"
+check "route hook: exit 0 on garbage" 0 "$(printf 'nope' | bash "$rp" >/dev/null 2>&1; echo $?)"
+c=$(rp_ctx "{\"session_id\":\"$rsid\",\"prompt\":\"/sharaqi route Change the colour in a.css (one rule)\",\"cwd\":\"$tmp\"}")
+check "route hook: ROUTE injected"   yes "$(has "$c" "ROUTE track=coding tier=tiny")"
+check "route hook: FACTS injected"   yes "$(has "$c" "FACTS critical=none")"
+check "route hook: route-only steps" yes "$(has "$c" "Run no tools")"
+check "route hook: route entry takes no BASE" no "$(has "$c" "BASE ")"
+check "route hook: route event logged" yes "$(grep -q '"event": "route"' "$tmp/sharaqi-state/$rsid.events.jsonl" && echo yes || echo no)"
+c=$(rp_ctx "{\"session_id\":\"$rsid\",\"prompt\":\"/sharaqi:sharaqi review HEAD\"}")
+check "route hook: plugin-prefixed form" yes "$(has "$c" "ROUTE track=review")"
+check "route hook: no python: unavailable, said so" yes \
+  "$(has "$(printf '{"session_id":"%s","prompt":"/sharaqi do x"}' "$rsid" | SHARAQI_PYTHON="$tmp/no-such-python" bash "$rp")" "ROUTE UNAVAILABLE")"
+check "route hook: no python, other prompt: silent" "" \
+  "$(printf '{"session_id":"%s","prompt":"hi"}' "$rsid" | SHARAQI_PYTHON="$tmp/no-such-python" bash "$rp")"
+check "route hook: no python, exit 0" 0 \
+  "$(printf '{"session_id":"%s","prompt":"/sharaqi do x"}' "$rsid" | SHARAQI_PYTHON="$tmp/no-such-python" bash "$rp" >/dev/null; echo $?)"
+check "route hook: off switch" "" "$(printf '{"session_id":"%s","prompt":"/sharaqi do x"}' "$rsid" | SHARAQI_NO_ROUTE_HOOK=1 bash "$rp")"
+
 # statusline-bridge.sh
 bsid="bridge-$$"
 bjson="{\"session_id\":\"$bsid\",\"model\":{\"id\":\"claude-opus-5-5\"},\"context_window\":{\"context_window_size\":200000,\"used_percentage\":12.5,\"total_input_tokens\":25000}}"
@@ -430,9 +538,14 @@ printf '%s' "${bjson/$bsid/..\/bad}" | bash "$bridge" >/dev/null
 check "bridge: session id with / refused" no "$([ -e "$tmp/bad.ctx" ] && echo yes || echo no)"
 check "bridge: garbage input: exit 0, ctx ?" "0:ctx ?" "$(o=$(printf 'nope' | bash "$bridge"); echo "$?:$o")"
 
-# hooks.json: the gate is entry [1], after cap-model
+# hooks.json: the gate is entry [1], after cap-model; the escalation audit is entry [2]
 if command -v jq >/dev/null 2>&1; then
-  check "hooks.json: two PreToolUse entries" 2 "$(jq '.hooks.PreToolUse | length' "$root/hooks/hooks.json")"
+  check "hooks.json: three PreToolUse entries" 3 "$(jq '.hooks.PreToolUse | length' "$root/hooks/hooks.json")"
+  check "hooks.json: audit matcher" "Agent|Task" "$(jq -r '.hooks.PreToolUse[2].matcher' "$root/hooks/hooks.json")"
+  check "hooks.json: audit command" "bash \"\${CLAUDE_PLUGIN_ROOT}/hooks/agent-audit.sh\" --in-run" \
+    "$(jq -r '.hooks.PreToolUse[2].hooks[0].command' "$root/hooks/hooks.json")"
+  check "hooks.json: route hook on UserPromptSubmit" "bash \"\${CLAUDE_PLUGIN_ROOT}/hooks/route-prompt.sh\"" \
+    "$(jq -r '.hooks.UserPromptSubmit[0].hooks[1].command' "$root/hooks/hooks.json")"
   check "hooks.json: gate matcher" "Agent|Task|Edit|Write|NotebookEdit" \
     "$(jq -r '.hooks.PreToolUse[1].matcher' "$root/hooks/hooks.json")"
   check "hooks.json: gate command" "bash \"\${CLAUDE_PLUGIN_ROOT}/hooks/context-gate.sh\" --in-run" \

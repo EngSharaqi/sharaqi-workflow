@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
-"""Routing policy for sharaqi: facts in, one route out.
+"""Routing policy for sharaqi v1.0: facts in, one route out.
 
-The orchestrator judges the facts from the task text (and wc / git status); this script
-applies the policy, so the same facts always give the same track, plan, approval, executor
-and review. It doesn't read the repo and can't see or change the context gate: that is
-hooks/context-gate.sh, on every track. Thresholds follow references/delegation.md
-(break-even ~3 work turns, inline under ~30 changed lines in one file).
+scripts/classify.py judges the facts from the task text (in the UserPromptSubmit hook, no
+model call); the Sonnet seat may correct a fact after its first reads and re-run this
+script. The policy is applied here, so the same facts always give the same track, plan,
+approval, executor, review and escalation. It doesn't read the repo and can't see or change
+the context gate: that is hooks/context-gate.sh, on every track.
+
+Opus appears only with an `escalate=` reason (hooks/agent-audit.sh blocks an Opus Agent call
+without one): `critical` (a CRITICAL trigger: Opus reviews), `failed-twice` (checks still
+fail after two repair attempts: Opus implements), `reasoning` (judgement a brief can't pin
+down). Everything else runs on the Sonnet seat or a cheaper rung.
 
 usage: route.py --track coding|noncoding|mixed|review|ops [facts]
   --critical none|auth|secrets|parsing|migration|deletion|irreversible|money|infra
@@ -19,7 +24,8 @@ usage: route.py --track coding|noncoding|mixed|review|ops [facts]
   --artifact code|doc  review: what is reviewed                          (required)
   --op install|test|deperr|git-read|commit|push|ado-read|ado-write|web|research|conflict
                        ops: the operation                                (required)
-  --failed N           ops: failed attempts at the current rung, with new evidence (default 0)
+  --failed N           failed repair attempts with new evidence (default 0); code: 2 escalates
+                       the executor to Opus (escalate=failed-twice); ops: 1 one rung, 2 ask
   --floor FAST|STANDARD|CRITICAL  the mode so far: a re-route never lowers it
 Prints `ROUTE key=value ...` and `WHY ...`; exit 2 on bad or contradictory facts.
 """
@@ -31,7 +37,7 @@ SECURITY = ("auth", "secrets", "parsing")
 CRITICAL = SECURITY + ("migration", "deletion", "irreversible", "money", "infra")
 SHAPES = ("trivial", "mechanical", "feature", "tricky", "judgement")
 INLINE_LINES = 30
-BREAK_EVEN_TURNS = 3  # haiku-*, references/delegation.md
+BREAK_EVEN_TURNS = 3  # haiku-*, docs/architecture.md (computed for an Opus seat)
 BREAK_EVEN_SONNET = 4  # sonnet-high, same table
 # Ops: default rung for a delegated run, whether an implementer can run it (it has no git
 # write, Web or MCP tools), and whether each run needs the user's explicit yes (rule 6).
@@ -50,8 +56,11 @@ OPS = {
 }
 OPS_LADDER = ("haiku-low", "haiku-medium", "haiku-high", "sonnet-high")
 OPS_FIX = ("test", "deperr", "conflict")  # a fix that edits files is a code task
-REVIEW ={"R7": "reviewer·opus·low", "R7+": "reviewer-medium·opus·medium",
-          "R7+sec": "reviewer-high·opus·high"}
+# Reviewer: Sonnet by default; Opus only for a CRITICAL trigger (escalate=critical).
+REVIEW = {"R7": "reviewer·sonnet·low", "R7+": "reviewer·opus·medium",
+          "R7+sec": "reviewer·opus·high"}
+SEAT = "sonnet"
+WIDE_FILES, WIDE_LINES = 3, 60  # past this, a fresh sonnet-high context pays for its brief
 
 
 class Bad(Exception):
@@ -63,19 +72,24 @@ def yes(v):
 
 
 def rung(f):
-    """Executor for a code part that isn't tiny. Tests one rung lower, none one higher."""
+    """Executor for a code part that isn't tiny, seen from a Sonnet seat. Tests one rung
+    lower; a sonnet-high subagent only when the work is wide enough to pay for a fresh
+    context, since inline is already Sonnet."""
     if f.files <= 1 and f.lines < INLINE_LINES:
         return "inline", "one file, under ~30 lines: below break-even"
     if f.shape == "judgement":
-        return "R6·opus-medium", "judgement a brief can't pin down"
-    if f.shape == "tricky":
-        return "R4·sonnet-high", "tricky logic"
+        return "R6·opus-medium", "judgement a brief can't pin down (escalate=reasoning)"
     if f.shape in ("trivial", "mechanical") and not yes(f.behaviour):
         return "R2·haiku-medium", "mechanical, no new logic"
+    wide = f.files >= WIDE_FILES or f.lines >= WIDE_LINES
+    if f.shape == "tricky":
+        return ("R4·sonnet-high", "tricky logic, wide enough for its own context") if wide \
+            else ("inline", "tricky but small: the Sonnet seat does it")
     if yes(f.checks) and not yes(f.uncertain):
         return "R3·haiku-high", "logic with tests or a typecheck to catch a miss"
-    return "R4·sonnet-high", ("unclear cause" if yes(f.checks)
-                              else "logic without a check that catches a miss")
+    why = "unclear cause" if yes(f.checks) else "logic without a check that catches a miss"
+    return ("R4·sonnet-high", why + ", wide enough for its own context") if wide \
+        else ("inline", why + "; small enough for the Sonnet seat")
 
 
 def coding(f):
@@ -89,20 +103,34 @@ def coding(f):
     else:
         mode = 0
     mode = max(mode, floor)
+    if mode == 2 and f.critical == "none":
+        raise Bad("--floor CRITICAL needs the trigger: pass --critical <trigger> again")
     tiny = (mode == 0 and f.files <= 1 and f.lines < INLINE_LINES
-            and f.shape in ("trivial", "mechanical"))
+            and f.shape in ("trivial", "mechanical") and f.failed == 0)
     if tiny:
         return dict(tier="tiny", mode="FAST", plan="none", approval="no", executor="inline",
-                    review="none", checks="diff+narrowest"), \
+                    review="none", checks="diff+narrowest", escalate="none"), \
             "tiny: one file, under ~30 lines, no behaviour change, no CRITICAL trigger"
     executor, why = rung(f)
+    escalate = "reasoning" if executor.startswith("R6") else "none"
+    if f.failed >= 2:
+        executor, escalate = "R6·opus-medium", "failed-twice"
+        why = "checks still fail after two repair attempts: Opus implements the next one"
+    elif f.failed == 1:
+        why += "; one failed attempt: retry at this rung with the new evidence"
     if mode == 2:
         review = REVIEW["R7+sec"] if f.critical in SECURITY else REVIEW["R7+"]
-        return dict(tier="critical", mode="CRITICAL", plan="card", approval="yes",
-                    executor=executor, review=review, checks="standard+negative"), \
-            f"CRITICAL trigger {f.critical}: plan, approval and R7+ review at any size; {why}"
+        plan = "planner·opus·high" if yes(f.uncertain) else "card"
+        if escalate == "none":
+            escalate = "critical"
+        return dict(tier="critical", mode="CRITICAL", plan=plan, approval="yes",
+                    executor=executor, review=review, checks="standard+negative",
+                    escalate=escalate), \
+            (f"CRITICAL trigger {f.critical}: plan, approval and an Opus review at any size"
+             + ("; Opus plans because the design is unclear" if plan != "card" else "")
+             + f"; {why}")
     return dict(tier="planned", mode=MODES[mode], plan="card", approval="yes",
-                executor=executor, review=REVIEW["R7"],
+                executor=executor, review=REVIEW["R7"], escalate=escalate,
                 checks="narrowest" if mode == 0 else "tests+lint"), \
         f"not tiny ({'behaviour changes' if yes(f.behaviour) else 'size or shape'}); {why}"
 
@@ -118,7 +146,8 @@ def noncoding(f):
     why = ("well-specified and past break-even: R8 Writer" if delegate
            else "inline: under break-even or needs judgement")
     return dict(tier="direct", mode="-", plan="none", approval="no", executor=executor,
-                review="none", checks="none"), why + "; review only on /sharaqi review"
+                review="none", checks="none", escalate="none"), \
+        why + "; review only on /sharaqi review"
 
 
 def review(f):
@@ -128,16 +157,19 @@ def review(f):
         raise Bad("--floor doesn't apply to a review: pass the code's trigger with --critical")
     if f.artifact == "doc" and f.critical not in (None, "none"):
         raise Bad("a CRITICAL trigger means code: use --artifact code")
+    escalate = "none"
     if f.artifact == "doc":
         r, why = REVIEW["R7"], "document review against the user's requirements"
     elif f.critical in SECURITY:
-        r, why = REVIEW["R7+sec"], f"code review, CRITICAL trigger {f.critical}"
+        r, why, escalate = REVIEW["R7+sec"], f"code review, CRITICAL trigger {f.critical}", \
+            "critical"
     elif f.critical not in (None, "none"):
-        r, why = REVIEW["R7+"], f"code review, CRITICAL trigger {f.critical}"
+        r, why, escalate = REVIEW["R7+"], f"code review, CRITICAL trigger {f.critical}", "critical"
     else:
         r, why = REVIEW["R7"], "code review of the given diff only"
     return dict(tier="review", mode="-", plan="none", approval="no", executor="none",
-                review=r, checks="none", scope="diff" if f.artifact == "code" else "artifact",
+                review=r, checks="none", escalate=escalate,
+                scope="diff" if f.artifact == "code" else "artifact",
                 fixes="ask"), why + "; read-only, fixes only after a yes"
 
 
@@ -157,7 +189,7 @@ def ops(f):
         i = min(i + 1, len(OPS_LADDER) - 1)
         escalate = "one-rung"
     elif f.failed >= 2:
-        escalate = "ask"  # one escalation per task (delegation.md); then the user, or R6
+        escalate = "ask"  # one escalation per task; then the user
     rung = OPS_LADDER[i]
     limit = BREAK_EVEN_SONNET if rung.startswith("sonnet") else BREAK_EVEN_TURNS
     if escalate == "ask":
@@ -192,6 +224,13 @@ def route(f):
     return out, "code part: " + why + "; writing parts delivered directly, outside the plan"
 
 
+def route_line(track, out):
+    keys = ("tier", "mode", "plan", "approval", "executor", "review", "escalate", "checks")
+    extra = [k for k in out if k not in keys]
+    return ("ROUTE track=" + track + "".join(f" {k}={out[k]}" for k in keys + tuple(extra))
+            + f" seat={SEAT} gate=hook")
+
+
 def parse(argv):
     p = argparse.ArgumentParser(add_help=True, usage=__doc__)
     p.add_argument("--track", required=True,
@@ -211,8 +250,10 @@ def parse(argv):
     f = p.parse_args(argv)
     if f.files < 0 or f.lines < 0 or f.turns < 0 or f.failed < 0:
         p.error("--files, --lines, --turns and --failed can't be negative")
-    if f.track != "ops" and (f.op or f.failed):
-        p.error("--op and --failed apply only to --track ops")
+    if f.track != "ops" and f.op:
+        p.error("--op applies only to --track ops")
+    if f.track in ("noncoding", "review") and f.failed:
+        p.error("--failed applies to code and ops tracks")
     return f
 
 
@@ -223,10 +264,7 @@ def main(argv=None):
     except Bad as e:
         print(f"route.py: {e}", file=sys.stderr)
         return 2
-    keys = ("tier", "mode", "plan", "approval", "executor", "review", "checks")
-    extra = [k for k in out if k not in keys]
-    print("ROUTE track=" + f.track + "".join(f" {k}={out[k]}" for k in keys + tuple(extra))
-          + " gate=hook")
+    print(route_line(f.track, out))
     print("WHY " + why)
     return 0
 

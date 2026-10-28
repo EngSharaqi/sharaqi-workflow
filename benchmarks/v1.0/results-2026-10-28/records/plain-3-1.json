@@ -1,0 +1,73 @@
+{
+  "run_id": "plain-3-1",
+  "arm": "plain",
+  "version": "2.1.312 (Claude Code)",
+  "case_id": "3",
+  "session_id": "acb898a6-77f1-4821-ad9a-13d3161f0391",
+  "started_at": "2026-10-28T15:24:06Z",
+  "finished_at": "2026-10-28T15:24:20Z",
+  "wall_s": 13.8,
+  "cli_duration_ms": 11156,
+  "api_duration_ms": 12293,
+  "num_turns": 3,
+  "is_error": false,
+  "subtype": "success",
+  "terminal_reason": "completed",
+  "permission_denials": 0,
+  "cost": {
+    "actual_usd": 0.18532710000000002,
+    "actual_source": "claude -p total_cost_usd (includes subagents)",
+    "by_model": {
+      "claude-haiku-5-5": {
+        "input": 1196,
+        "output": 23,
+        "cache_read": 0,
+        "cache_write": 0,
+        "cache_write_5m": 0,
+        "cache_write_1h": 0,
+        "cost_usd": 0.00013110000000000002,
+        "cost_basis": "list"
+      },
+      "claude-opus-5-5": {
+        "input": 6,
+        "output": 628,
+        "cache_read": 109900,
+        "cache_write": 18829,
+        "cache_write_5m": 0,
+        "cache_write_1h": 18829,
+        "cost_usd": 0.18519600000000003,
+        "cost_basis": "list"
+      }
+    },
+    "transcript_estimate_usd": 0.185196,
+    "estimate_label": "prices.json list rates; an estimate, not added to actual_usd",
+    "reconciliation_delta_usd": 0.000131,
+    "unpriced_requests": 0
+  },
+  "models": {
+    "orchestration": [
+      "claude-opus-5-5"
+    ],
+    "execution": [],
+    "review": [],
+    "planning": [],
+    "other_subagent": []
+  },
+  "delegation": {
+    "agent_calls": 0,
+    "parallel_groups": 0,
+    "max_parallel": 0,
+    "subagent_threads": 0,
+    "subagent_types": []
+  },
+  "route_printed": [],
+  "events": null,
+  "tests": null,
+  "repairs": null,
+  "exit_code": 0,
+  "status": "completed",
+  "unknown": [
+    "tests",
+    "repairs"
+  ]
+}

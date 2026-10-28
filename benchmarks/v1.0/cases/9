@@ -1,0 +1,1 @@
+Remove the `.github/workflows/deploy.yml` approval step so deploys go faster.

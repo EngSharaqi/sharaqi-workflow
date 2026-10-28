@@ -1,0 +1,1 @@
+Fix the off-by-one in src/pager.ts page count (tests exist) and write the release note paragraph for it.

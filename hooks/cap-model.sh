@@ -150,7 +150,7 @@ esac
 
 if [ "$(rank "$e")" -gt "$(rank "$cap")" ]; then
   case "$m" in
-    *haiku*) block "Haiku runs at $cap effort or lower (effort '$e' from $src). Use implementer-low or implementer, or a sonnet rung for harder work." ;;
+    *haiku*) block "Haiku runs at $cap effort or lower (effort '$e' from $src). Use effort high or lower on the call, or a sonnet rung for harder work." ;;
     *) block "effort '$e' (from $src) is above the ceiling for ${m:-this model} ($cap). Use $cap or lower." ;;
   esac
 fi

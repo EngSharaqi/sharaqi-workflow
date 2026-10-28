@@ -1,6 +1,6 @@
 ---
 name: planner
-description: sharaqi only. Read-only plan or diagnosis for a CRITICAL task, at high effort. Returns a plan in prose; never edits, never runs commands.
+description: sharaqi only. Read-only plan for a CRITICAL change with an unclear design; Opus, logged as an escalation. Never edits.
 model: opus
 effort: high
 tools: Read, Grep, Glob

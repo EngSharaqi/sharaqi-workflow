@@ -125,7 +125,7 @@ verdict judges only what the reply shows.
 | | Sharaqi v0.9 | Plain Claude Code |
 |---|---|---|
 | Total cost | $2.9817 | $2.0657 (31% less) |
-| Median cost per case | $0.2499 | $0.1855 |
+| Median cost per case | $0.2499 | $0.1873 (corrected from $0.1855, see below) |
 | Without the one cold-cache run (case 1) | $2.5356 over 10 cases, mean $0.2536 | $1.8752 over 10 cases, mean $0.1875 |
 | CLI time, total · median | 179.0 s · 13.5 s | 136.1 s · 12.9 s |
 | Turns · tool calls · agents | 24 · 13 · 0 | 36 · 25 · 0 |
@@ -134,6 +134,12 @@ verdict judges only what the reply shows.
 | Explicit, repeatable route | 11/11 as expected | not exposed |
 | CRITICAL cases (4, 9) | `critical`: plan, approval and R7+ review required by policy | flagged in prose; no stated approval or review step |
 | Reviews actually carried out | 0 of 2 (both stopped at the context check) | 1 of 2 (7a inline; 7b not treated as a review) |
+
+**Median correction (2026-10-28):** the Plain median first published here, $0.1855, is
+case 3's cost, the 5th of the 11 sorted values. The median is the 6th: $0.1873 (case 2).
+Recomputed with Python's `statistics.median` over `total_cost_usd` in the 11 raw `result`
+events (`plain-<case>.jsonl` of the Arm A run), which match the cost column above. The
+v0.9 median, $0.2499, was recomputed the same way and is unchanged. No raw record changed.
 
 **Where the cost difference comes from:** cache writes. Sharaqi's skill text
 and agent listings add about 8,700 cache-write tokens per case (about 27,300

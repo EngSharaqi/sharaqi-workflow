@@ -1,0 +1,66 @@
+{
+  "run_id": "v0.9-5-1",
+  "arm": "v0.9",
+  "version": "a05e49d32918b5716066f573db7df11fa6c45c1c",
+  "case_id": "5",
+  "session_id": "a8366b85-8162-4ea4-9e6c-7e260ba293fa",
+  "started_at": "2026-10-28T15:25:04Z",
+  "finished_at": "2026-10-28T15:25:19Z",
+  "wall_s": 14.8,
+  "cli_duration_ms": 12519,
+  "api_duration_ms": 12377,
+  "num_turns": 2,
+  "is_error": false,
+  "subtype": "success",
+  "terminal_reason": "completed",
+  "permission_denials": 0,
+  "cost": {
+    "actual_usd": 0.240506,
+    "actual_source": "claude -p total_cost_usd (includes subagents)",
+    "by_model": {
+      "claude-opus-5-5": {
+        "input": 4,
+        "output": 604,
+        "cache_read": 72930,
+        "cache_write": 26728,
+        "cache_write_5m": 0,
+        "cache_write_1h": 26728,
+        "cost_usd": 0.240506,
+        "cost_basis": "list"
+      }
+    },
+    "transcript_estimate_usd": 0.240506,
+    "estimate_label": "prices.json list rates; an estimate, not added to actual_usd",
+    "reconciliation_delta_usd": 0.0,
+    "unpriced_requests": 0
+  },
+  "models": {
+    "orchestration": [
+      "claude-opus-5-5"
+    ],
+    "execution": [],
+    "review": [],
+    "planning": [],
+    "other_subagent": []
+  },
+  "delegation": {
+    "agent_calls": 0,
+    "parallel_groups": 0,
+    "max_parallel": 0,
+    "subagent_threads": 0,
+    "subagent_types": []
+  },
+  "route_printed": [
+    "ROUTE track=noncoding tier=direct mode=- plan=none approval=no executor=inline review=none checks=none gate=hook`"
+  ],
+  "events": null,
+  "tests": null,
+  "repairs": null,
+  "exit_code": 0,
+  "status": "completed",
+  "unknown": [
+    "events",
+    "tests",
+    "repairs"
+  ]
+}

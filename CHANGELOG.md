@@ -1,5 +1,57 @@
 # Changelog
 
+## 1.0.0-exp — unreleased, experimental
+
+Sonnet runs the session; Opus comes in only on a logged escalation. From the LLM council of
+2026-10-28. v0.9 stays reproducible from commit `a05e49d` (`benchmarks/v1.0/prepare.sh`
+archives it).
+
+### Benchmarks
+- benchmarks/v1.0/RESULTS.md: one paid round of the three-arm routing benchmark, 33/33 runs
+  completed, $5.6351 spent. On the 11 routing cases v1.0 cost $0.9183 against $2.0351 for
+  plain Claude Code (−54.9%) and $2.6817 for v0.9; wall clock 123.4 s against 194.2 s
+  (−36.5%); routes 11/11 for both Sharaqi arms; 0 Opus escalations. Routing only: no task was
+  completed and the CRITICAL cases stopped before their Opus review. Raw records in
+  `benchmarks/v1.0/results-2026-10-28/`.
+
+### Changed
+- SKILL.md: `model: sonnet`, `effort: medium`; 18,487 B → 1,672 B. The frontmatter hooks
+  are gone; the plugin's hooks.json carries them (a skills-directory install that has
+  `.claude-plugin/` loads as a plugin, so hooks.json applies there too).
+- `scripts/route.py`: reviewer `reviewer·sonnet·low` for planned routes and reviews;
+  `reviewer·opus·medium|high` only for a CRITICAL trigger. New `escalate=` field
+  (`none|critical|failed-twice|reasoning`; ops keep `one-rung|ask`) and `seat=sonnet`.
+  `--failed 2` on a code route escalates the executor to `R6·opus-medium`. The Opus
+  planner only for CRITICAL with `--uncertain yes`. Logic without checks, or tricky logic,
+  stays inline unless it spans ≥ 3 files or ≥ 60 lines (then `R4·sonnet-high`).
+  A `--floor CRITICAL` without its trigger is refused.
+- Agents: 7 → 3. `implementer` and `reviewer` take model and effort from the call;
+  `implementer-low/-high` and `reviewer-medium/-high` are removed. `planner` stays.
+- references: `delegation.md`, `brief.md`, `review.md` replaced by `references/routes/`
+  (one small file per route, injected by the prompt hook). `triage.md` and
+  `security-checklist.md` kept.
+- `hooks/context-gate.sh`: benchmark mode (`SHARAQI_BENCHMARK=1` +
+  `SHARAQI_CONTEXT_WINDOW`), same thresholds; re-reads a transcript that doesn't exist yet
+  or has no usage entry yet (5 × 0.3 s); every decision logged with a reason class.
+
+### Added
+- `scripts/classify.py` + `hooks/route-prompt.sh` (UserPromptSubmit): routes a `/sharaqi`
+  prompt from its text before any model turn, injects ROUTE, FACTS (stated or assumed), BASE
+  and only that route's steps. Never blocks a prompt; says `ROUTE UNAVAILABLE` when it
+  fails. `/sharaqi go` approves a pending plan on the Sonnet seat; a plain reply while a
+  plan waits gets one notice that it runs on the session's model.
+- `hooks/agent-audit.sh` (PreToolUse Agent|Task, in a run): blocks an Opus call without
+  `escalate:<critical|failed-twice|reasoning>` in its description, and any call without
+  `run_in_background: false`; logs every call to `<config>/sharaqi-state/<session>.events.jsonl`.
+- `--debug`: `▶`/`◀` lines and the token receipt, off by default.
+- `scripts/runrecord.py`: one JSON record per run (CLI cost as the actual figure, per-model
+  usage, transcript estimate with its difference, wall and CLI time, route, delegation,
+  escalations, gate decisions, unknowns named) and a per-arm summary.
+- `benchmarks/v1.0/`: the three-arm routing benchmark (MANIFEST.md), with a zero-cost
+  preflight against a local capture server (33/33 pass).
+- Tests: `test_classify.py`, `test_runrecord.py`; route and hook tests updated to the v1.0
+  policy (hooks 449, Python 105, snapshot 12).
+
 ## 0.9.0 — unreleased
 
 Adaptive routing: plan and review where the risk is, not on every task.

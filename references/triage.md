@@ -1,14 +1,14 @@
-# Triage — when the table in SKILL.md step 1 isn't enough
+# Triage — borderline facts when re-routing
 
-The tracks, facts and tiers are in SKILL.md step 1; `scripts/route.py` turns
-the facts into the route. This file is for facts the tables leave unclear.
+`scripts/classify.py` judges the facts from the task text and `scripts/route.py` turns
+them into the route. This file is for the seat when a fact is borderline and it re-routes.
 
 The mode is about blast radius: what a mistake would break, for whom, and how
 hard it is to undo. It is not about the words in the task. "Price", "cart" or
 "money" in a pure calculation in small, scoped code is STANDARD; code that
 charges a card, pays out or calls a payment system is CRITICAL.
 
-Who implements is a separate choice (delegation.md): a CRITICAL one-line
+Who implements is a separate choice (the executor, references/routes/delegate.md): a CRITICAL one-line
 permission fix can be done inline, and a FAST 40-file rename can go to
 `haiku`. Size is a signal, not the measure.
 
@@ -23,7 +23,7 @@ permission fix can be done inline, and a FAST 40-file rename can go to
 | Blast radius | one screen, easy to revert | many screens, users, tenants or stored data; external systems; hard to revert |
 
 FAST: every factor is low. STANDARD: at least one is moderate or high and no
-CRITICAL trigger applies. CRITICAL: a trigger from the SKILL.md table applies.
+CRITICAL trigger applies. CRITICAL: a trigger from route.py's `--critical` list applies.
 
 ## Borderline cases
 

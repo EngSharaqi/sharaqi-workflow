@@ -1,0 +1,129 @@
+{
+  "note": "Scored route fields per case. v0.9: the pre-registered expectation in benchmarks/v0.9/routing-cases.md, as fields (case 4's 'reviewer·opus·high' is written with v0.9's agent file name). v1.0: the same fields, with the reviewer model and escalate value the v1.0 policy names (Sonnet reviewer; Opus only for a CRITICAL trigger). Fields not listed are not scored. Plain Claude Code exposes no route and is not scored on routes.",
+  "entry": {
+    "7a": "review",
+    "7b": "review"
+  },
+  "v0.9": {
+    "1": {
+      "track": "coding",
+      "tier": "tiny",
+      "plan": "none",
+      "approval": "no",
+      "review": "none",
+      "executor": "inline"
+    },
+    "2": {
+      "tier": "planned",
+      "plan": "card",
+      "approval": "yes",
+      "review": "reviewer·opus·low"
+    },
+    "3": {
+      "tier": "planned",
+      "mode": "FAST",
+      "executor": "R2·haiku-medium"
+    },
+    "4": {
+      "tier": "critical",
+      "approval": "yes",
+      "review": "reviewer-high·opus·high"
+    },
+    "5": {
+      "track": "noncoding",
+      "tier": "direct",
+      "plan": "none",
+      "review": "none"
+    },
+    "6": {
+      "track": "noncoding",
+      "review": "none"
+    },
+    "7a": {
+      "track": "review",
+      "scope": "artifact",
+      "fixes": "ask",
+      "review": "reviewer·opus·low"
+    },
+    "7b": {
+      "track": "review",
+      "scope": "diff",
+      "fixes": "ask"
+    },
+    "8": {
+      "track": "mixed",
+      "writing": "direct",
+      "tier": "planned"
+    },
+    "9": {
+      "tier": "critical"
+    },
+    "10": {
+      "track": "mixed",
+      "tier": "tiny",
+      "writing": "direct"
+    }
+  },
+  "v1.0": {
+    "1": {
+      "track": "coding",
+      "tier": "tiny",
+      "plan": "none",
+      "approval": "no",
+      "review": "none",
+      "executor": "inline"
+    },
+    "2": {
+      "tier": "planned",
+      "plan": "card",
+      "approval": "yes",
+      "review": "reviewer·sonnet·low"
+    },
+    "3": {
+      "tier": "planned",
+      "mode": "FAST",
+      "executor": "R2·haiku-medium"
+    },
+    "4": {
+      "tier": "critical",
+      "approval": "yes",
+      "review": "reviewer·opus·high",
+      "escalate": "critical"
+    },
+    "5": {
+      "track": "noncoding",
+      "tier": "direct",
+      "plan": "none",
+      "review": "none"
+    },
+    "6": {
+      "track": "noncoding",
+      "review": "none"
+    },
+    "7a": {
+      "track": "review",
+      "scope": "artifact",
+      "fixes": "ask",
+      "review": "reviewer·sonnet·low"
+    },
+    "7b": {
+      "track": "review",
+      "scope": "diff",
+      "fixes": "ask"
+    },
+    "8": {
+      "track": "mixed",
+      "writing": "direct",
+      "tier": "planned"
+    },
+    "9": {
+      "tier": "critical",
+      "escalate": "critical"
+    },
+    "10": {
+      "track": "mixed",
+      "tier": "tiny",
+      "writing": "direct"
+    }
+  }
+}
