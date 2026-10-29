@@ -1,0 +1,20 @@
+{
+  "note": "Coverage of what the prompt asks for, by regex. Presence only: it says nothing about whether the content is right.",
+  "terms": {
+    "pgvector": ["pgvector"],
+    "Qdrant": ["qdrant"],
+    "Milvus": ["milvus"],
+    "Weaviate": ["weaviate"],
+    "Pinecone": ["pinecone"],
+    "Chroma": ["chroma"],
+    "license": ["licen[cs]e", "ترخيص", "رخصة", "Apache", "BSD", "MIT"],
+    "managed pricing": ["\\$\\s?\\d", "\\d\\s?(?:دولار|USD)"],
+    "published benchmark": ["ann-benchmarks", "VectorDBBench", "benchmark", "بنشمارك"],
+    "limits / drawbacks": ["عيوب", "حدود", "limitation", "drawback"],
+    "recommendation": ["التوصية", "الاختيار", "نوصي", "الأنسب", "recommend"],
+    "second choice": ["البديل", "الخيار الثاني", "alternative"],
+    "when to switch": ["متى (?:ن|ت)غيّ?ر", "إمتى", "امتى", "when to (?:switch|migrate)", "ننتقل", "التحويل"],
+    "10M vectors sizing": ["10\\s?(?:M|million|مليون)", "١٠\\s?مليون", "10,000,000"],
+    "Arabic text": ["عربي", "Arabic", "multilingual", "متعدد اللغات"]
+  }
+}

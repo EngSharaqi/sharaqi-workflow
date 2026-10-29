@@ -1,0 +1,22 @@
+Implement a small spreadsheet engine in `src/sheet.js` (Node 20+, no packages): export `class Sheet` with `set(ref, raw)` and `get(ref)`. Think the design through before coding: correctness on the rules below matters more than speed of delivery.
+
+References: one column letter A–Z and a row 1–99999, case-insensitive (`a1` is `A1`). `set`/`get` with an invalid reference throw a `RangeError`.
+
+`set(ref, raw)` takes a string. `""` clears the cell. If the trimmed text is a finite number (`Number()` rules, e.g. `3`, `-2.5`, `1e3`) the cell holds that number. If it starts with `=` it is a formula. Anything else is text, kept exactly as given.
+
+`get(ref)` returns the cell's current value: a number, a text string, an error string, or `null` for an empty cell. Every `get` reflects all `set` calls made so far.
+
+Formulas:
+- Number literals (`2`, `3.5`), cell references, ranges such as `A1:B3` (only as function arguments; the corners may be in any order), parentheses, unary `-`, binary `+ - * /`, and the comparisons `= <> < > <= >=`, which return 1 or 0. Precedence from low to high: comparison, `+ -`, `* /`, unary `-`. Binary operators are left-associative.
+- Functions, case-insensitive: `SUM`, `MIN`, `MAX`, `COUNT` (how many numbers), each taking any number of expression or range arguments, and `IF(cond, then, else)`, where any non-zero number is true.
+- A formula whose result is a direct reference returns that cell's value, text included (`=A1` where A1 holds `hi` gives `hi`). An empty cell is 0 when referenced.
+- Inside `SUM`/`MIN`/`MAX`/`COUNT`, text and empty values are ignored; `MIN`/`MAX` with no numbers give 0.
+
+Errors are these exact strings: `#PARSE!` (formula doesn't parse, a range outside a function argument, or `IF` without exactly 3 arguments), `#NAME?` (unknown function), `#REF!` (a reference outside A–Z / 1–99999, e.g. `A0` or `AA1`), `#VALUE!` (text used with an operator or comparison), `#DIV/0!`, `#CYCLE!`.
+- An error value used by a formula makes the formula's result that error. With several errors, the first one in left-to-right order wins; a range is read row by row, left to right within a row.
+- `IF` evaluates only the branch it picks: an error in the other branch does not propagate.
+- Cycles are found from the references written in formulas (all of them, including both `IF` branches and every cell in a range), whatever the values are. Every cell on a cycle is `#CYCLE!`, including a cell that refers to itself. A cell that is not on a cycle but uses a cycle cell gets `#CYCLE!` through normal error propagation. Editing a cell that breaks a cycle restores normal values.
+
+Scale: a chain of 20,000 cells (`A1` = `1`, `A2` = `=A1+1`, … `A20000` = `=A19999+1`, set in any order) must give `get('A20000') === 20000` without a stack overflow. After changing A1, reading A20000 again must be correct, and the whole sequence must finish within 2 seconds.
+
+Add tests under `test/` and make `npm test` pass.

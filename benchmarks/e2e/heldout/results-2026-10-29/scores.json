@@ -1,0 +1,1603 @@
+[
+  {
+    "arm": "plain",
+    "task": "complex",
+    "rep": "1",
+    "run": "plain-complex-1",
+    "exit_code": 0,
+    "timed_out": false,
+    "errors": [],
+    "cost_usd": 0.8140691999999999,
+    "cost_check_sum_models": 0.814,
+    "wall_s": 180.8,
+    "api_s": 180.2,
+    "cli_s": 180.3,
+    "model_calls_main": 9,
+    "model_calls_sub": 0,
+    "turns": 9,
+    "messages_sent": 1,
+    "go_sent": 0,
+    "models": {
+      "claude-haiku-5-5": {
+        "cost": 0.0002,
+        "in": 2115,
+        "out": 23,
+        "cache_read": 0,
+        "cache_write": 0,
+        "web_search": 0
+      },
+      "claude-opus-5-5": {
+        "cost": 0.8138,
+        "in": 18,
+        "out": 19266,
+        "cache_read": 472311,
+        "cache_write": 41749,
+        "web_search": 0
+      }
+    },
+    "tools": {
+      "Bash": 6,
+      "Write": 2
+    },
+    "agent_calls": [],
+    "route": null,
+    "output_tokens": 19289,
+    "changed": [
+      {
+        "file": "src/resolve.js",
+        "added": 222,
+        "deleted": 2
+      },
+      {
+        "file": "test/resolve.test.js",
+        "added": 378,
+        "deleted": 0
+      }
+    ],
+    "hidden": {
+      "pass": 19,
+      "fail": 0,
+      "tests": 19,
+      "failed": []
+    },
+    "own_tests": {
+      "exit": 0,
+      "tests": 32,
+      "pass": 32,
+      "fail": 0
+    }
+  },
+  {
+    "arm": "plain",
+    "task": "complex",
+    "rep": "2",
+    "run": "plain-complex-2",
+    "exit_code": 0,
+    "timed_out": false,
+    "errors": [],
+    "cost_usd": 0.7910656,
+    "cost_check_sum_models": 0.791,
+    "wall_s": 176.9,
+    "api_s": 175.5,
+    "cli_s": 176.5,
+    "model_calls_main": 10,
+    "model_calls_sub": 0,
+    "turns": 12,
+    "messages_sent": 1,
+    "go_sent": 0,
+    "models": {
+      "claude-haiku-5-5": {
+        "cost": 0.0002,
+        "in": 2115,
+        "out": 23,
+        "cache_read": 0,
+        "cache_write": 0,
+        "web_search": 0
+      },
+      "claude-opus-5-5": {
+        "cost": 0.7908,
+        "in": 20,
+        "out": 18392,
+        "cache_read": 521253,
+        "cache_write": 39834,
+        "web_search": 0
+      }
+    },
+    "tools": {
+      "Bash": 8,
+      "Write": 2,
+      "Edit": 1
+    },
+    "agent_calls": [],
+    "route": null,
+    "output_tokens": 18415,
+    "changed": [
+      {
+        "file": "src/resolve.js",
+        "added": 199,
+        "deleted": 2
+      },
+      {
+        "file": "test/resolve.test.js",
+        "added": 316,
+        "deleted": 0
+      }
+    ],
+    "hidden": {
+      "pass": 19,
+      "fail": 0,
+      "tests": 19,
+      "failed": []
+    },
+    "own_tests": {
+      "exit": 0,
+      "tests": 49,
+      "pass": 49,
+      "fail": 0
+    }
+  },
+  {
+    "arm": "plain",
+    "task": "medium",
+    "rep": "1",
+    "run": "plain-medium-1",
+    "exit_code": 0,
+    "timed_out": false,
+    "errors": [],
+    "cost_usd": 0.3470754,
+    "cost_check_sum_models": 0.3471,
+    "wall_s": 52.6,
+    "api_s": 52.9,
+    "cli_s": 52.2,
+    "model_calls_main": 4,
+    "model_calls_sub": 0,
+    "turns": 6,
+    "messages_sent": 1,
+    "go_sent": 0,
+    "models": {
+      "claude-haiku-5-5": {
+        "cost": 0.0002,
+        "in": 1665,
+        "out": 19,
+        "cache_read": 0,
+        "cache_write": 0,
+        "web_search": 0
+      },
+      "claude-opus-5-5": {
+        "cost": 0.3469,
+        "in": 8,
+        "out": 5400,
+        "cache_read": 159257,
+        "cache_write": 25877,
+        "web_search": 0
+      }
+    },
+    "tools": {
+      "Bash": 3,
+      "Write": 2
+    },
+    "agent_calls": [],
+    "route": null,
+    "output_tokens": 5419,
+    "changed": [
+      {
+        "file": "src/app.js",
+        "added": 37,
+        "deleted": 2
+      },
+      {
+        "file": "src/store.js",
+        "added": 38,
+        "deleted": 0
+      },
+      {
+        "file": "test/orders.test.js",
+        "added": 152,
+        "deleted": 0
+      }
+    ],
+    "hidden": {
+      "pass": 11,
+      "fail": 0,
+      "tests": 11,
+      "failed": []
+    },
+    "own_tests": {
+      "exit": 0,
+      "tests": 12,
+      "pass": 12,
+      "fail": 0
+    }
+  },
+  {
+    "arm": "plain",
+    "task": "medium",
+    "rep": "2",
+    "run": "plain-medium-2",
+    "exit_code": 0,
+    "timed_out": false,
+    "errors": [],
+    "cost_usd": 0.3621506,
+    "cost_check_sum_models": 0.3622,
+    "wall_s": 50.7,
+    "api_s": 51.6,
+    "cli_s": 50.4,
+    "model_calls_main": 5,
+    "model_calls_sub": 0,
+    "turns": 5,
+    "messages_sent": 1,
+    "go_sent": 0,
+    "models": {
+      "claude-haiku-5-5": {
+        "cost": 0.0002,
+        "in": 1665,
+        "out": 19,
+        "cache_read": 0,
+        "cache_write": 0,
+        "web_search": 0
+      },
+      "claude-opus-5-5": {
+        "cost": 0.362,
+        "in": 10,
+        "out": 5771,
+        "cache_read": 207213,
+        "cache_write": 25634,
+        "web_search": 0
+      }
+    },
+    "tools": {
+      "Bash": 4
+    },
+    "agent_calls": [],
+    "route": null,
+    "output_tokens": 5790,
+    "changed": [
+      {
+        "file": "src/app.js",
+        "added": 37,
+        "deleted": 2
+      },
+      {
+        "file": "src/store.js",
+        "added": 45,
+        "deleted": 0
+      },
+      {
+        "file": "test/orders.test.js",
+        "added": 154,
+        "deleted": 0
+      }
+    ],
+    "hidden": {
+      "pass": 11,
+      "fail": 0,
+      "tests": 11,
+      "failed": []
+    },
+    "own_tests": {
+      "exit": 0,
+      "tests": 12,
+      "pass": 12,
+      "fail": 0
+    }
+  },
+  {
+    "arm": "plain",
+    "task": "research",
+    "rep": "1",
+    "run": "plain-research-1",
+    "exit_code": 0,
+    "timed_out": false,
+    "errors": [],
+    "cost_usd": 2.1902508,
+    "cost_check_sum_models": 2.1902,
+    "wall_s": 320.2,
+    "api_s": 473.8,
+    "cli_s": 319.5,
+    "model_calls_main": 14,
+    "model_calls_sub": 0,
+    "turns": 37,
+    "messages_sent": 1,
+    "go_sent": 0,
+    "models": {
+      "claude-haiku-5-5": {
+        "cost": 0.0238,
+        "in": 156091,
+        "out": 16421,
+        "cache_read": 0,
+        "cache_write": 0,
+        "web_search": 0
+      },
+      "claude-opus-5-5": {
+        "cost": 2.1664,
+        "in": 151478,
+        "out": 36681,
+        "cache_read": 861776,
+        "cache_write": 68068,
+        "web_search": 11
+      }
+    },
+    "tools": {
+      "ToolSearch": 1,
+      "Bash": 6,
+      "WebSearch": 11,
+      "WebFetch": 17,
+      "Write": 1
+    },
+    "agent_calls": [],
+    "route": null,
+    "output_tokens": 53102,
+    "changed": [
+      {
+        "file": "report.md",
+        "added": 243,
+        "deleted": 0
+      }
+    ],
+    "report": {
+      "exists": true,
+      "bytes": 28687,
+      "words": 2783,
+      "lines": 244,
+      "headings": 17,
+      "h2": 7,
+      "h3": 9,
+      "tables": 2,
+      "urls": 30,
+      "domains": 18,
+      "salary_mentions": 82,
+      "rubric": {
+        "pgvector": true,
+        "Qdrant": true,
+        "Milvus": true,
+        "Weaviate": true,
+        "Pinecone": true,
+        "Chroma": true,
+        "license": true,
+        "managed pricing": true,
+        "published benchmark": true,
+        "limits / drawbacks": true,
+        "recommendation": true,
+        "second choice": true,
+        "when to switch": true,
+        "10M vectors sizing": true,
+        "Arabic text": true
+      },
+      "rubric_hit": 15,
+      "rubric_of": 15,
+      "links": [
+        {
+          "url": "https://ann-benchmarks.com/",
+          "code": "200"
+        },
+        {
+          "url": "https://aws.amazon.com/about-aws/whats-new/2024/11/amazon-rds-for-postgresql-pgvector-080/",
+          "code": "200"
+        },
+        {
+          "url": "https://cookbook.chromadb.dev/core/system_constraints/",
+          "code": "200"
+        },
+        {
+          "url": "https://docs.pinecone.io/guides/manage-cost/understanding-cost",
+          "code": "200"
+        },
+        {
+          "url": "https://github.com/chroma-core/chroma",
+          "code": "200"
+        },
+        {
+          "url": "https://github.com/milvus-io/milvus",
+          "code": "200"
+        },
+        {
+          "url": "https://github.com/milvus-io/milvus-docs/blob/v3.0.x/site/en/release_notes.md",
+          "code": "200"
+        },
+        {
+          "url": "https://github.com/pgvector/pgvector",
+          "code": "200"
+        },
+        {
+          "url": "https://github.com/pgvector/pgvector/blob/master/LICENSE",
+          "code": "200"
+        },
+        {
+          "url": "https://github.com/qdrant/qdrant",
+          "code": "200"
+        },
+        {
+          "url": "https://github.com/timescale/pgvectorscale",
+          "code": "200"
+        },
+        {
+          "url": "https://github.com/weaviate/weaviate/blob/main/LICENSE",
+          "code": "200"
+        },
+        {
+          "url": "https://github.com/zilliztech/VectorDBBench",
+          "code": "200"
+        },
+        {
+          "url": "https://instances.vantage.sh/aws/rds/db.r7g.xlarge",
+          "code": "200"
+        },
+        {
+          "url": "https://lfaidata.foundation/blog/2026/07/29/milvus-3-0-is-here-lf-ai-datas-open-source-vector-database-goes-lake-native/",
+          "code": "200"
+        },
+        {
+          "url": "https://misraj.sa/en/blog/full-text-search-in-postgres",
+          "code": "200"
+        },
+        {
+          "url": "https://qdrant.tech/benchmarks/",
+          "code": "200"
+        },
+        {
+          "url": "https://qdrant.tech/pricing/",
+          "code": "200"
+        },
+        {
+          "url": "https://repost.aws/questions/QUEgTTEzDeQdCoo5UJIEGAYw/add-pgvectorscale-extension-to-amazon-rds-aurora-postgresql-for-diskann-hnsw-hybrid-vector-search",
+          "code": "200"
+        },
+        {
+          "url": "https://weaviate.io/blog/weaviate-cloud-pricing-update",
+          "code": "200"
+        },
+        {
+          "url": "https://weaviate.io/pricing",
+          "code": "200"
+        },
+        {
+          "url": "https://www.bytebase.com/dbcost/rds/instance/db.r7g.xlarge/",
+          "code": "200"
+        },
+        {
+          "url": "https://www.groovyweb.co/blog/vector-database-comparison-2026",
+          "code": "200"
+        },
+        {
+          "url": "https://www.pinecone.io/pricing/",
+          "code": "200"
+        },
+        {
+          "url": "https://www.postgresql.org/about/news/pgvector-087-released-3392/",
+          "code": "200"
+        },
+        {
+          "url": "https://www.postgresql.org/docs/current/textsearch-dictionaries.html",
+          "code": "200"
+        },
+        {
+          "url": "https://www.tigerdata.com/blog/pgvector-vs-qdrant",
+          "code": "200"
+        },
+        {
+          "url": "https://www.trychroma.com/pricing",
+          "code": "200"
+        },
+        {
+          "url": "https://zilliz.com/benchmark",
+          "code": "200"
+        },
+        {
+          "url": "https://zilliz.com/pricing",
+          "code": "200"
+        }
+      ],
+      "links_ok": 30,
+      "links_403": 0
+    }
+  },
+  {
+    "arm": "plain",
+    "task": "research",
+    "rep": "2",
+    "run": "plain-research-2",
+    "exit_code": 0,
+    "timed_out": false,
+    "errors": [],
+    "cost_usd": 2.2925762,
+    "cost_check_sum_models": 2.2926,
+    "wall_s": 289.1,
+    "api_s": 492.0,
+    "cli_s": 288.0,
+    "model_calls_main": 8,
+    "model_calls_sub": 0,
+    "turns": 27,
+    "messages_sent": 1,
+    "go_sent": 0,
+    "models": {
+      "claude-haiku-5-5": {
+        "cost": 0.0153,
+        "in": 76725,
+        "out": 15199,
+        "cache_read": 0,
+        "cache_write": 0,
+        "web_search": 0
+      },
+      "claude-opus-5-5": {
+        "cost": 2.2773,
+        "in": 193526,
+        "out": 36687,
+        "cache_read": 440821,
+        "cache_write": 67662,
+        "web_search": 14
+      }
+    },
+    "tools": {
+      "ToolSearch": 1,
+      "Bash": 1,
+      "WebSearch": 14,
+      "WebFetch": 9,
+      "Write": 1
+    },
+    "agent_calls": [],
+    "route": null,
+    "output_tokens": 51886,
+    "changed": [
+      {
+        "file": "report.md",
+        "added": 258,
+        "deleted": 0
+      }
+    ],
+    "report": {
+      "exists": true,
+      "bytes": 28945,
+      "words": 2824,
+      "lines": 259,
+      "headings": 17,
+      "h2": 6,
+      "h3": 10,
+      "tables": 3,
+      "urls": 36,
+      "domains": 25,
+      "salary_mentions": 53,
+      "rubric": {
+        "pgvector": true,
+        "Qdrant": true,
+        "Milvus": true,
+        "Weaviate": true,
+        "Pinecone": true,
+        "Chroma": true,
+        "license": true,
+        "managed pricing": true,
+        "published benchmark": true,
+        "limits / drawbacks": true,
+        "recommendation": true,
+        "second choice": true,
+        "when to switch": true,
+        "10M vectors sizing": true,
+        "Arabic text": true
+      },
+      "rubric_hit": 15,
+      "rubric_of": 15,
+      "links": [
+        {
+          "url": "https://ann-benchmarks.com/",
+          "code": "200"
+        },
+        {
+          "url": "https://atlan.com/know/ai-agent/data-for-ai/what-is-chroma-vector-database/",
+          "code": "200"
+        },
+        {
+          "url": "https://aws.amazon.com/blogs/database/scale-pgvector-with-binary-quantization-on-amazon-aurora-postgresql/",
+          "code": "200"
+        },
+        {
+          "url": "https://docs.pinecone.io/guides/manage-cost/understanding-cost",
+          "code": "200"
+        },
+        {
+          "url": "https://flur.ee/blog/weaviate-alternatives",
+          "code": "200"
+        },
+        {
+          "url": "https://github.com/mukoubuchi/vector-search-hands-on/pull/25",
+          "code": "200"
+        },
+        {
+          "url": "https://github.com/pgvector/pgvector",
+          "code": "200"
+        },
+        {
+          "url": "https://github.com/pgvector/pgvector/blob/master/LICENSE",
+          "code": "200"
+        },
+        {
+          "url": "https://github.com/timescale/pgvectorscale",
+          "code": "200"
+        },
+        {
+          "url": "https://github.com/weaviate/weaviate",
+          "code": "200"
+        },
+        {
+          "url": "https://markaicode.com/pricing/milvus-vs-chroma-cost/",
+          "code": "200"
+        },
+        {
+          "url": "https://milvus.io/docs/prerequisite-docker.md",
+          "code": "302"
+        },
+        {
+          "url": "https://milvus.io/docs/use-woodpecker.md",
+          "code": "302"
+        },
+        {
+          "url": "https://misraj.sa/en/blog/full-text-search-in-postgres",
+          "code": "200"
+        },
+        {
+          "url": "https://panoply.io/tools/pinecone/",
+          "code": "403"
+        },
+        {
+          "url": "https://panoply.io/tools/weaviate/",
+          "code": "403"
+        },
+        {
+          "url": "https://pocketlantern.dev/briefs/weaviate-ha-by-default-pricing-transition-october-2025",
+          "code": "200"
+        },
+        {
+          "url": "https://qdrant.tech/benchmarks/",
+          "code": "200"
+        },
+        {
+          "url": "https://qdrant.tech/blog/qdrant-1.16.x/",
+          "code": "200"
+        },
+        {
+          "url": "https://qdrant.tech/blog/qdrant-1.17.x/",
+          "code": "200"
+        },
+        {
+          "url": "https://qdrant.tech/pricing/",
+          "code": "200"
+        },
+        {
+          "url": "https://ranksquire.com/2026/04/22/weaviate-cloud-pricing-2026/",
+          "code": "200"
+        },
+        {
+          "url": "https://reserver.io/reserved-instances/rds/db-r7g-xlarge",
+          "code": "200"
+        },
+        {
+          "url": "https://spendark.com/blog/vector-database-pricing/",
+          "code": "200"
+        },
+        {
+          "url": "https://supabase.com/docs/guides/platform/manage-your-usage/compute",
+          "code": "200"
+        },
+        {
+          "url": "https://thebuild.com/blog/on-pgvectorscale-and-hybrid-search-without-an-elasticsearch-sidecar/",
+          "code": "200"
+        },
+        {
+          "url": "https://weaviate.io/blog/weaviate-cloud-pricing-update",
+          "code": "200"
+        },
+        {
+          "url": "https://weaviate.io/pricing",
+          "code": "200"
+        },
+        {
+          "url": "https://www.bytebase.com/dbcost/rds/instance/db.r7g.2xlarge/",
+          "code": "200"
+        },
+        {
+          "url": "https://www.pinecone.io/pricing/",
+          "code": "200"
+        },
+        {
+          "url": "https://www.postgresql.org/docs/19/textsearch-dictionaries.html",
+          "code": "200"
+        },
+        {
+          "url": "https://www.thenile.dev/blog/pgvector-080",
+          "code": "200"
+        },
+        {
+          "url": "https://www.tigerdata.com/blog/pgvector-vs-qdrant",
+          "code": "200"
+        },
+        {
+          "url": "https://www.trychroma.com/pricing",
+          "code": "200"
+        },
+        {
+          "url": "https://zilliz.com/pricing",
+          "code": "200"
+        },
+        {
+          "url": "https://zilliz.com/vdbbench-leaderboard",
+          "code": "200"
+        }
+      ],
+      "links_ok": 34,
+      "links_403": 2
+    }
+  },
+  {
+    "arm": "plain",
+    "task": "simple",
+    "rep": "1",
+    "run": "plain-simple-1",
+    "exit_code": 0,
+    "timed_out": false,
+    "errors": [],
+    "cost_usd": 0.4332283999999999,
+    "cost_check_sum_models": 0.4332,
+    "wall_s": 23.8,
+    "api_s": 20.9,
+    "cli_s": 20.0,
+    "model_calls_main": 4,
+    "model_calls_sub": 0,
+    "turns": 6,
+    "messages_sent": 1,
+    "go_sent": 0,
+    "models": {
+      "claude-haiku-5-5": {
+        "cost": 0.0001,
+        "in": 1280,
+        "out": 24,
+        "cache_read": 0,
+        "cache_write": 0,
+        "web_search": 0
+      },
+      "claude-opus-5-5": {
+        "cost": 0.4331,
+        "in": 8,
+        "out": 1599,
+        "cache_read": 130102,
+        "cache_write": 46882,
+        "web_search": 0
+      }
+    },
+    "tools": {
+      "Bash": 3,
+      "Edit": 2
+    },
+    "agent_calls": [],
+    "route": null,
+    "output_tokens": 1623,
+    "changed": [
+      {
+        "file": "src/duration.js",
+        "added": 3,
+        "deleted": 2
+      },
+      {
+        "file": "test/duration.test.js",
+        "added": 7,
+        "deleted": 0
+      }
+    ],
+    "hidden": {
+      "pass": 10,
+      "fail": 0,
+      "tests": 10,
+      "failed": []
+    },
+    "own_tests": {
+      "exit": 0,
+      "tests": 3,
+      "pass": 3,
+      "fail": 0
+    }
+  },
+  {
+    "arm": "plain",
+    "task": "simple",
+    "rep": "2",
+    "run": "plain-simple-2",
+    "exit_code": 0,
+    "timed_out": false,
+    "errors": [],
+    "cost_usd": 0.21728160000000002,
+    "cost_check_sum_models": 0.2172,
+    "wall_s": 18.3,
+    "api_s": 20.1,
+    "cli_s": 17.7,
+    "model_calls_main": 3,
+    "model_calls_sub": 0,
+    "turns": 5,
+    "messages_sent": 1,
+    "go_sent": 0,
+    "models": {
+      "claude-haiku-5-5": {
+        "cost": 0.0001,
+        "in": 1280,
+        "out": 24,
+        "cache_read": 0,
+        "cache_write": 0,
+        "web_search": 0
+      },
+      "claude-opus-5-5": {
+        "cost": 0.2171,
+        "in": 6,
+        "out": 1444,
+        "cache_read": 110388,
+        "cache_write": 20770,
+        "web_search": 0
+      }
+    },
+    "tools": {
+      "Bash": 2,
+      "Edit": 2
+    },
+    "agent_calls": [],
+    "route": null,
+    "output_tokens": 1468,
+    "changed": [
+      {
+        "file": "src/duration.js",
+        "added": 3,
+        "deleted": 2
+      },
+      {
+        "file": "test/duration.test.js",
+        "added": 7,
+        "deleted": 0
+      }
+    ],
+    "hidden": {
+      "pass": 10,
+      "fail": 0,
+      "tests": 10,
+      "failed": []
+    },
+    "own_tests": {
+      "exit": 0,
+      "tests": 3,
+      "pass": 3,
+      "fail": 0
+    }
+  },
+  {
+    "arm": "plugin",
+    "task": "complex",
+    "rep": "1",
+    "run": "plugin-complex-1",
+    "exit_code": 0,
+    "timed_out": false,
+    "errors": [],
+    "cost_usd": 1.0210793,
+    "cost_check_sum_models": 1.0211,
+    "wall_s": 301.5,
+    "api_s": 296.8,
+    "cli_s": 300.9,
+    "model_calls_main": 10,
+    "model_calls_sub": 7,
+    "turns": 10,
+    "messages_sent": 2,
+    "go_sent": 1,
+    "models": {
+      "claude-sonnet-5-5": {
+        "cost": 0.3322,
+        "in": 20,
+        "out": 9812,
+        "cache_read": 548155,
+        "cache_write": 44799,
+        "web_search": 0
+      },
+      "claude-opus-5-5": {
+        "cost": 0.6889,
+        "in": 20,
+        "out": 20319,
+        "cache_read": 82989,
+        "cache_write": 53170,
+        "web_search": 0
+      }
+    },
+    "tools": {
+      "Bash": 8,
+      "Agent": 3,
+      "Write": 2,
+      "Read": 4,
+      "Grep": 1
+    },
+    "agent_calls": [
+      {
+        "subagent_type": "sharaqi:implementer",
+        "model": "opus",
+        "effort": "medium",
+        "description": "escalate:reasoning implement resolver"
+      },
+      {
+        "subagent_type": "sharaqi:reviewer",
+        "model": "opus",
+        "effort": "medium",
+        "description": "escalate:reasoning review resolver diff"
+      },
+      {
+        "subagent_type": "sharaqi:reviewer",
+        "model": "opus",
+        "effort": "medium",
+        "description": "escalate:reasoning re-review repair diff"
+      }
+    ],
+    "route": "ROUTE track=coding tier=critical mode=CRITICAL plan=card approval=yes executor=R6·opus-medium review=reviewer·opus·medium escalate=reasoning checks=standard+negative seat=sonnet gate=hook",
+    "output_tokens": 30131,
+    "changed": [
+      {
+        "file": "src/resolve.js",
+        "added": 248,
+        "deleted": 2
+      },
+      {
+        "file": "test/resolve.test.js",
+        "added": 242,
+        "deleted": 0
+      }
+    ],
+    "hidden": {
+      "pass": 19,
+      "fail": 0,
+      "tests": 19,
+      "failed": []
+    },
+    "own_tests": {
+      "exit": 0,
+      "tests": 26,
+      "pass": 26,
+      "fail": 0
+    }
+  },
+  {
+    "arm": "plugin",
+    "task": "complex",
+    "rep": "2",
+    "run": "plugin-complex-2",
+    "exit_code": 0,
+    "timed_out": false,
+    "errors": [],
+    "cost_usd": 1.1032193000000003,
+    "cost_check_sum_models": 1.1033,
+    "wall_s": 365.9,
+    "api_s": 361.3,
+    "cli_s": 365.1,
+    "model_calls_main": 10,
+    "model_calls_sub": 8,
+    "turns": 11,
+    "messages_sent": 2,
+    "go_sent": 1,
+    "models": {
+      "claude-sonnet-5-5": {
+        "cost": 0.3405,
+        "in": 20,
+        "out": 10255,
+        "cache_read": 544735,
+        "cache_write": 45851,
+        "web_search": 0
+      },
+      "claude-opus-5-5": {
+        "cost": 0.7628,
+        "in": 20,
+        "out": 25086,
+        "cache_read": 135009,
+        "cache_write": 46790,
+        "web_search": 0
+      }
+    },
+    "tools": {
+      "Read": 5,
+      "Bash": 10,
+      "Agent": 2,
+      "Write": 2,
+      "Edit": 2
+    },
+    "agent_calls": [
+      {
+        "subagent_type": "sharaqi:implementer",
+        "model": "opus",
+        "effort": "medium",
+        "description": "escalate:reasoning resolver implementation"
+      },
+      {
+        "subagent_type": "sharaqi:reviewer",
+        "model": "opus",
+        "effort": "medium",
+        "description": "escalate:reasoning review resolver diff"
+      }
+    ],
+    "route": "ROUTE track=coding tier=critical mode=CRITICAL plan=card approval=yes executor=R6·opus-medium review=reviewer·opus·medium escalate=reasoning checks=standard+negative seat=sonnet gate=hook",
+    "output_tokens": 35341,
+    "changed": [
+      {
+        "file": "src/resolve.js",
+        "added": 256,
+        "deleted": 2
+      },
+      {
+        "file": "test/resolve.test.js",
+        "added": 319,
+        "deleted": 0
+      }
+    ],
+    "hidden": {
+      "pass": 19,
+      "fail": 0,
+      "tests": 19,
+      "failed": []
+    },
+    "own_tests": {
+      "exit": 0,
+      "tests": 32,
+      "pass": 32,
+      "fail": 0
+    }
+  },
+  {
+    "arm": "plugin",
+    "task": "medium",
+    "rep": "1",
+    "run": "plugin-medium-1",
+    "exit_code": 0,
+    "timed_out": false,
+    "errors": [],
+    "cost_usd": 0.1727145,
+    "cost_check_sum_models": 0.1727,
+    "wall_s": 45.7,
+    "api_s": 44.1,
+    "cli_s": 45.2,
+    "model_calls_main": 4,
+    "model_calls_sub": 0,
+    "turns": 4,
+    "messages_sent": 1,
+    "go_sent": 0,
+    "models": {
+      "claude-sonnet-5-5": {
+        "cost": 0.1727,
+        "in": 8,
+        "out": 4345,
+        "cache_read": 166005,
+        "cache_write": 28162,
+        "web_search": 0
+      }
+    },
+    "tools": {
+      "Bash": 3
+    },
+    "agent_calls": [],
+    "route": "ROUTE track=coding tier=planned mode=STANDARD plan=card approval=no executor=R3·haiku-high review=none escalate=none checks=tests+lint seat=sonnet gate=hook",
+    "output_tokens": 4345,
+    "changed": [
+      {
+        "file": "src/app.js",
+        "added": 32,
+        "deleted": 2
+      },
+      {
+        "file": "src/store.js",
+        "added": 33,
+        "deleted": 0
+      },
+      {
+        "file": "test/orders.test.js",
+        "added": 92,
+        "deleted": 0
+      }
+    ],
+    "hidden": {
+      "pass": 11,
+      "fail": 0,
+      "tests": 11,
+      "failed": []
+    },
+    "own_tests": {
+      "exit": 0,
+      "tests": 8,
+      "pass": 8,
+      "fail": 0
+    }
+  },
+  {
+    "arm": "plugin",
+    "task": "medium",
+    "rep": "2",
+    "run": "plugin-medium-2",
+    "exit_code": 0,
+    "timed_out": false,
+    "errors": [],
+    "cost_usd": 0.1796161,
+    "cost_check_sum_models": 0.1796,
+    "wall_s": 39.1,
+    "api_s": 37.7,
+    "cli_s": 38.7,
+    "model_calls_main": 4,
+    "model_calls_sub": 0,
+    "turns": 4,
+    "messages_sent": 1,
+    "go_sent": 0,
+    "models": {
+      "claude-sonnet-5-5": {
+        "cost": 0.1796,
+        "in": 8,
+        "out": 4879,
+        "cache_read": 165941,
+        "cache_write": 28554,
+        "web_search": 0
+      }
+    },
+    "tools": {
+      "Bash": 3
+    },
+    "agent_calls": [],
+    "route": "ROUTE track=coding tier=planned mode=STANDARD plan=card approval=no executor=R3·haiku-high review=none escalate=none checks=tests+lint seat=sonnet gate=hook",
+    "output_tokens": 4879,
+    "changed": [
+      {
+        "file": "src/app.js",
+        "added": 38,
+        "deleted": 2
+      },
+      {
+        "file": "src/store.js",
+        "added": 35,
+        "deleted": 0
+      },
+      {
+        "file": "test/orders.test.js",
+        "added": 97,
+        "deleted": 0
+      }
+    ],
+    "hidden": {
+      "pass": 11,
+      "fail": 0,
+      "tests": 11,
+      "failed": []
+    },
+    "own_tests": {
+      "exit": 0,
+      "tests": 8,
+      "pass": 8,
+      "fail": 0
+    }
+  },
+  {
+    "arm": "plugin",
+    "task": "research",
+    "rep": "1",
+    "run": "plugin-research-1",
+    "exit_code": 0,
+    "timed_out": false,
+    "errors": [],
+    "cost_usd": 0.7851033000000002,
+    "cost_check_sum_models": 0.7851,
+    "wall_s": 189.7,
+    "api_s": 341.3,
+    "cli_s": 189.0,
+    "model_calls_main": 10,
+    "model_calls_sub": 0,
+    "turns": 33,
+    "messages_sent": 1,
+    "go_sent": 0,
+    "models": {
+      "claude-sonnet-5-5": {
+        "cost": 0.7455,
+        "in": 99687,
+        "out": 19812,
+        "cache_read": 591070,
+        "cache_write": 54725,
+        "web_search": 7
+      },
+      "claude-haiku-5-5": {
+        "cost": 0.0396,
+        "in": 275943,
+        "out": 24016,
+        "cache_read": 0,
+        "cache_write": 0,
+        "web_search": 0
+      }
+    },
+    "tools": {
+      "ToolSearch": 1,
+      "WebSearch": 7,
+      "WebFetch": 21,
+      "Write": 1,
+      "Edit": 2
+    },
+    "agent_calls": [],
+    "route": "ROUTE track=noncoding tier=direct mode=- plan=none approval=no executor=inline review=none escalate=none checks=links research=searches>=6,sources>=10 seat=sonnet gate=hook",
+    "output_tokens": 43828,
+    "changed": [
+      {
+        "file": "report.md",
+        "added": 113,
+        "deleted": 0
+      }
+    ],
+    "report": {
+      "exists": true,
+      "bytes": 15067,
+      "words": 1565,
+      "lines": 114,
+      "headings": 14,
+      "h2": 6,
+      "h3": 7,
+      "tables": 1,
+      "urls": 19,
+      "domains": 9,
+      "salary_mentions": 31,
+      "rubric": {
+        "pgvector": true,
+        "Qdrant": true,
+        "Milvus": true,
+        "Weaviate": true,
+        "Pinecone": true,
+        "Chroma": true,
+        "license": true,
+        "managed pricing": true,
+        "published benchmark": true,
+        "limits / drawbacks": true,
+        "recommendation": true,
+        "second choice": true,
+        "when to switch": true,
+        "10M vectors sizing": true,
+        "Arabic text": true
+      },
+      "rubric_hit": 15,
+      "rubric_of": 15,
+      "links": [
+        {
+          "url": "https://arxiv.org/abs/2506.06339",
+          "code": "200"
+        },
+        {
+          "url": "https://dev.to/devrudals/enterprise-vector-database-2026-qdrant-vs-milvus-vs-pgvector-vs-pinecone-16a0",
+          "code": "200"
+        },
+        {
+          "url": "https://github.com/cdeust/Cortex/pull/757",
+          "code": "200"
+        },
+        {
+          "url": "https://github.com/chroma-core/chroma",
+          "code": "200"
+        },
+        {
+          "url": "https://github.com/milvus-io/milvus",
+          "code": "200"
+        },
+        {
+          "url": "https://github.com/pgvector/pgvector",
+          "code": "200"
+        },
+        {
+          "url": "https://github.com/pgvector/pgvector/blob/master/LICENSE",
+          "code": "200"
+        },
+        {
+          "url": "https://github.com/qdrant/qdrant",
+          "code": "200"
+        },
+        {
+          "url": "https://github.com/timescale/pgvectorscale",
+          "code": "200"
+        },
+        {
+          "url": "https://github.com/weaviate/weaviate",
+          "code": "200"
+        },
+        {
+          "url": "https://github.com/zilliztech/VectorDBBench",
+          "code": "200"
+        },
+        {
+          "url": "https://instances.vantage.sh/aws/rds/db.r6g.2xlarge?region=us-east-1&selected_os=postgresql",
+          "code": "200"
+        },
+        {
+          "url": "https://qdrant.tech/benchmarks/",
+          "code": "200"
+        },
+        {
+          "url": "https://qdrant.tech/pricing/",
+          "code": "200"
+        },
+        {
+          "url": "https://weaviate.io/pricing",
+          "code": "200"
+        },
+        {
+          "url": "https://www.pinecone.io/pricing/",
+          "code": "200"
+        },
+        {
+          "url": "https://www.trychroma.com/pricing",
+          "code": "200"
+        },
+        {
+          "url": "https://zilliz.com/benchmark",
+          "code": "200"
+        },
+        {
+          "url": "https://zilliz.com/pricing",
+          "code": "200"
+        }
+      ],
+      "links_ok": 19,
+      "links_403": 0
+    }
+  },
+  {
+    "arm": "plugin",
+    "task": "research",
+    "rep": "2",
+    "run": "plugin-research-2",
+    "exit_code": 0,
+    "timed_out": false,
+    "errors": [],
+    "cost_usd": 0.7273573000000001,
+    "cost_check_sum_models": 0.7273,
+    "wall_s": 184.1,
+    "api_s": 336.9,
+    "cli_s": 183.1,
+    "model_calls_main": 8,
+    "model_calls_sub": 0,
+    "turns": 28,
+    "messages_sent": 1,
+    "go_sent": 0,
+    "models": {
+      "claude-sonnet-5-5": {
+        "cost": 0.6976,
+        "in": 99227,
+        "out": 17850,
+        "cache_read": 441716,
+        "cache_write": 51621,
+        "web_search": 7
+      },
+      "claude-haiku-5-5": {
+        "cost": 0.0297,
+        "in": 194452,
+        "out": 20605,
+        "cache_read": 0,
+        "cache_write": 0,
+        "web_search": 0
+      }
+    },
+    "tools": {
+      "ToolSearch": 1,
+      "WebSearch": 7,
+      "WebFetch": 18,
+      "Write": 1
+    },
+    "agent_calls": [],
+    "route": "ROUTE track=noncoding tier=direct mode=- plan=none approval=no executor=inline review=none escalate=none checks=links research=searches>=6,sources>=10 seat=sonnet gate=hook",
+    "output_tokens": 38455,
+    "changed": [
+      {
+        "file": "report.md",
+        "added": 88,
+        "deleted": 0
+      }
+    ],
+    "report": {
+      "exists": true,
+      "bytes": 13506,
+      "words": 1415,
+      "lines": 89,
+      "headings": 9,
+      "h2": 8,
+      "h3": 0,
+      "tables": 1,
+      "urls": 15,
+      "domains": 9,
+      "salary_mentions": 0,
+      "rubric": {
+        "pgvector": true,
+        "Qdrant": true,
+        "Milvus": true,
+        "Weaviate": true,
+        "Pinecone": true,
+        "Chroma": true,
+        "license": true,
+        "managed pricing": false,
+        "published benchmark": true,
+        "limits / drawbacks": true,
+        "recommendation": true,
+        "second choice": true,
+        "when to switch": true,
+        "10M vectors sizing": true,
+        "Arabic text": true
+      },
+      "rubric_hit": 14,
+      "rubric_of": 15,
+      "links": [
+        {
+          "url": "https://github.com/milvus-io/milvus",
+          "code": "200"
+        },
+        {
+          "url": "https://github.com/pgvector/pgvector",
+          "code": "200"
+        },
+        {
+          "url": "https://github.com/qdrant/qdrant",
+          "code": "200"
+        },
+        {
+          "url": "https://github.com/timescale/pgvectorscale",
+          "code": "200"
+        },
+        {
+          "url": "https://github.com/weaviate/weaviate",
+          "code": "200"
+        },
+        {
+          "url": "https://huggingface.co/BAAI/bge-m3",
+          "code": "200"
+        },
+        {
+          "url": "https://qdrant.tech/benchmarks/",
+          "code": "200"
+        },
+        {
+          "url": "https://qdrant.tech/pricing/",
+          "code": "200"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/pgvector/pgvector/master/LICENSE",
+          "code": "200"
+        },
+        {
+          "url": "https://weaviate.io/pricing",
+          "code": "200"
+        },
+        {
+          "url": "https://www.pinecone.io/pricing/",
+          "code": "200"
+        },
+        {
+          "url": "https://www.tigerdata.com/blog/pgvector-vs-qdrant",
+          "code": "200"
+        },
+        {
+          "url": "https://www.trychroma.com/pricing",
+          "code": "200"
+        },
+        {
+          "url": "https://zilliz.com/pricing",
+          "code": "200"
+        },
+        {
+          "url": "https://zilliz.com/vdbbench-leaderboard",
+          "code": "200"
+        }
+      ],
+      "links_ok": 15,
+      "links_403": 0
+    }
+  },
+  {
+    "arm": "plugin",
+    "task": "simple",
+    "rep": "1",
+    "run": "plugin-simple-1",
+    "exit_code": 0,
+    "timed_out": false,
+    "errors": [],
+    "cost_usd": 0.23682989999999998,
+    "cost_check_sum_models": 0.2368,
+    "wall_s": 35.2,
+    "api_s": 31.1,
+    "cli_s": 31.9,
+    "model_calls_main": 5,
+    "model_calls_sub": 0,
+    "turns": 7,
+    "messages_sent": 1,
+    "go_sent": 0,
+    "models": {
+      "claude-sonnet-5-5": {
+        "cost": 0.2368,
+        "in": 10,
+        "out": 1983,
+        "cache_read": 185879,
+        "cache_write": 49598,
+        "web_search": 0
+      }
+    },
+    "tools": {
+      "Read": 2,
+      "Bash": 2,
+      "Edit": 2
+    },
+    "agent_calls": [],
+    "route": "ROUTE track=coding tier=planned mode=STANDARD plan=card approval=no executor=inline review=none escalate=none checks=tests+lint seat=sonnet gate=hook",
+    "output_tokens": 1983,
+    "changed": [
+      {
+        "file": "src/duration.js",
+        "added": 2,
+        "deleted": 2
+      },
+      {
+        "file": "test/duration.test.js",
+        "added": 8,
+        "deleted": 0
+      }
+    ],
+    "hidden": {
+      "pass": 10,
+      "fail": 0,
+      "tests": 10,
+      "failed": []
+    },
+    "own_tests": {
+      "exit": 0,
+      "tests": 3,
+      "pass": 3,
+      "fail": 0
+    }
+  },
+  {
+    "arm": "plugin",
+    "task": "simple",
+    "rep": "2",
+    "run": "plugin-simple-2",
+    "exit_code": 0,
+    "timed_out": false,
+    "errors": [],
+    "cost_usd": 0.13661340000000002,
+    "cost_check_sum_models": 0.1366,
+    "wall_s": 25.8,
+    "api_s": 24.3,
+    "cli_s": 25.1,
+    "model_calls_main": 5,
+    "model_calls_sub": 0,
+    "turns": 7,
+    "messages_sent": 1,
+    "go_sent": 0,
+    "models": {
+      "claude-sonnet-5-5": {
+        "cost": 0.1366,
+        "in": 10,
+        "out": 1876,
+        "cache_read": 210934,
+        "cache_write": 24185,
+        "web_search": 0
+      }
+    },
+    "tools": {
+      "Read": 1,
+      "Bash": 3,
+      "Edit": 2
+    },
+    "agent_calls": [],
+    "route": "ROUTE track=coding tier=planned mode=STANDARD plan=card approval=no executor=inline review=none escalate=none checks=tests+lint seat=sonnet gate=hook",
+    "output_tokens": 1876,
+    "changed": [
+      {
+        "file": "src/duration.js",
+        "added": 2,
+        "deleted": 2
+      },
+      {
+        "file": "test/duration.test.js",
+        "added": 7,
+        "deleted": 0
+      }
+    ],
+    "hidden": {
+      "pass": 10,
+      "fail": 0,
+      "tests": 10,
+      "failed": []
+    },
+    "own_tests": {
+      "exit": 0,
+      "tests": 3,
+      "pass": 3,
+      "fail": 0
+    }
+  }
+]

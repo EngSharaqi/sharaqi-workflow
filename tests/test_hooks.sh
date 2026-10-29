@@ -505,6 +505,33 @@ check "audit: unreadable input in a run: allowed, logged unchecked" 0 \
 check "audit: unchecked logged" yes "$(tail -1 "$a_ev" | grep -q '"decision":"unchecked"' && echo yes || echo no)"
 rm -f "$tmp/sharaqi-state/$asid.run"
 
+# agent-audit.sh follows the latest route / reroute event (e2e benchmark: an implementer ran
+# against executor=inline with no re-route)
+rsid2="reroute-$$"
+r_ev="$tmp/sharaqi-state/$rsid2.events.jsonl"
+printf '{"session_id":"%s","prompt":"/sharaqi do x"}' "$rsid2" | bash "$hints" prompt >/dev/null
+rpay() { # subagent_type [model] [description]
+  printf '{"session_id":"%s","tool_input":{"model":"%s","effort":"medium","subagent_type":"%s","description":"%s","run_in_background":false}}' \
+    "$rsid2" "${2:-sonnet}" "$1" "${3:-impl}"
+}
+check "route audit: no route event: not checked" 0 "$(audit_exit "$(rpay sharaqi:implementer)" --in-run)"
+printf '{"event": "route", "route": "ROUTE track=coding tier=planned mode=STANDARD plan=card approval=no executor=inline review=none escalate=none checks=tests+lint seat=sonnet gate=hook"}\n' >> "$r_ev"
+check "route audit: implementer against executor=inline blocked" 2 "$(audit_exit "$(rpay sharaqi:implementer)" --in-run)"
+check "route audit: reviewer against review=none blocked" 2 "$(audit_exit "$(rpay sharaqi:reviewer)" --in-run)"
+check "route audit: other agents not checked" 0 "$(audit_exit "$(rpay Explore)" --in-run)"
+check "route audit: message names the re-route" yes "$(has "$(printf '%s' "$(rpay sharaqi:implementer)" | bash "$audit" --in-run 2>&1 >/dev/null)" "--session")"
+check "route audit: block reason recorded" route "$(tail -1 "$r_ev" | python3 -I -c 'import json,sys; print(json.load(sys.stdin)["reason"])')"
+python3 -I "$root/scripts/route.py" --track coding --critical none --files 3 --lines 90 --shape judgement --session "$rsid2" >/dev/null
+check "route audit: route.py --session logs a reroute" reroute "$(tail -1 "$r_ev" | python3 -I -c 'import json,sys; print(json.load(sys.stdin)["event"])')"
+check "route audit: reroute args logged without the session" no "$(tail -1 "$r_ev" | grep -q "$rsid2" && echo yes || echo no)"
+check "route audit: after the reroute the Opus implementer runs" 0 "$(audit_exit "$(rpay sharaqi:implementer opus 'escalate:reasoning impl')" --in-run)"
+check "route audit: still no reviewer (review=none)" 2 "$(audit_exit "$(rpay sharaqi:reviewer)" --in-run)"
+printf '{"event": "route", "route": "ROUTE track=coding tier=critical mode=CRITICAL plan=card approval=yes executor=inline review=reviewer·opus·high escalate=critical checks=standard+negative seat=sonnet gate=hook"}\n' >> "$r_ev"
+check "route audit: critical route allows its reviewer" 0 "$(audit_exit "$(rpay sharaqi:reviewer opus 'escalate:critical review')" --in-run)"
+check "route audit: route.py bad session id: not logged, exit 0" "0:no" \
+  "$(python3 -I "$root/scripts/route.py" --track coding --critical none --session '../x' >/dev/null 2>&1; echo "$?:$([ -e "$tmp/x.events.jsonl" ] && echo yes || echo no)")"
+rm -f "$tmp/sharaqi-state/$rsid2.run"
+
 # --- route-prompt.sh: routes /sharaqi prompts, never blocks, says so when it can't
 rp="$root/hooks/route-prompt.sh"
 rsid="route-$$"

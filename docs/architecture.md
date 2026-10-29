@@ -18,9 +18,11 @@ measured on v1.0.
     text → facts (each stated or assumed) → scripts/route.py → ROUTE line
     + BASE snapshot when the route plans + only this route's steps (references/routes/)
   Sonnet 5.5 · medium (SKILL.md frontmatter; 1,672 B)
-    tiny / direct / ops: does it; planned / critical: plan, stop, wait for /sharaqi go
-    executors: inline · haiku (R2, R3, R8) · sonnet-high (R4, only when wide)
-    reviewer: Sonnet · low; Opus · medium/high only for a CRITICAL trigger
+    tiny / direct / ops: does it; planned: plan, carry on; critical: plan, stop, /sharaqi go
+    executors: inline · haiku (R2, R3, R8) · sonnet-medium (R4, only when wide)
+               · opus-medium (R6, escalate=reasoning: long or judgement-heavy specs)
+    reviewer: CRITICAL only, Opus · medium/high; elsewhere the seat checks its diff
+    agent-audit.sh blocks an implementer/reviewer the latest route or reroute doesn't name
   Opus, only with escalate=critical | failed-twice | reasoning (hooks/agent-audit.sh)
 ```
 
@@ -83,7 +85,7 @@ from reading files it will hand off; `scripts/route.py` applies the policy to
 those facts in the same first command, so equal facts give an equal route:
 
 ```
-ROUTE track=coding tier=planned mode=STANDARD plan=card approval=yes executor=R3·haiku-high review=reviewer·opus·low checks=tests+lint gate=hook
+ROUTE track=coding tier=planned mode=STANDARD plan=card approval=no executor=R3·haiku-high review=none checks=tests+lint gate=hook
 WHY not tiny (behaviour changes); logic with tests or a typecheck to catch a miss
 ```
 
@@ -92,7 +94,7 @@ WHY not tiny (behaviour changes); logic with tests or a typecheck to catch a mis
 | Track: coding, non-coding, mixed (the code part), review | non-coding gets no plan and no review; mixed routes only its code part |
 | CRITICAL trigger | tier `critical` at any size: plan, approval, R7+ reviewer |
 | One file, < ~30 lines, no behaviour change, trivial/mechanical | tier `tiny`: no plan, no approval, no reviewer; diff check and the narrowest check |
-| Anything else that changes code | tier `planned`: plan ≤ 12 lines, approval, reviewer Opus · low |
+| Anything else that changes code | tier `planned`: plan ≤ 8 lines, no approval wait, the seat checks its diff (since the e2e benchmark) |
 | Change size, mechanical vs judgement, tests | executor rung, via the break-even below |
 | Track `ops` and `--op` (install, test, git, commit, push, Azure DevOps, web, conflict) | tier `ops`: no plan, no reviewer; `rung` is the model if delegated, `executor=inline` below break-even or when the implementer lacks the tool (`delegable=no`); `authz=explicit-yes` for commit, push and Azure DevOps writes, separate from the model; a fix that edits files re-routes as code |
 
@@ -101,7 +103,7 @@ Agent, Edit and Write call of a `/sharaqi` run, whatever the track.
 
 The rung ladder, cheapest first (`docs/model-effort-plan.md` §5, since
 v0.8): `inline` (tiny known edit), `haiku-medium` (R2), `haiku-high` (R3, with
-tests), `sonnet-high` (R4), `opus-medium` (R6), `opus-high` (R6+); `opus-low`
+tests), `sonnet-medium` (R4; `sonnet-high` before the e2e benchmark), `opus-medium` (R6), `opus-high` (R6+); `opus-low`
 (R5) answers questions only. Task-shape examples per rung are in
 [references/delegation.md](../references/delegation.md). Routing accuracy
 is measured offline against 16 pre-registered cases

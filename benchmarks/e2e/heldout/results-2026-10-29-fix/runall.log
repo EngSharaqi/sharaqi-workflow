@@ -1,0 +1,3 @@
+{"arm": "plugin", "task": "complex", "rep": "1", "rc": 0, "wall_s": 130.8, "gos": 0, "cost": [0.3016346]}
+{"arm": "plugin", "task": "complex", "rep": "2", "rc": 0, "wall_s": 149.9, "gos": 0, "cost": [0.3032823]}
+ALL-DONE

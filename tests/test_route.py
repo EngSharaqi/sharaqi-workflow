@@ -71,37 +71,40 @@ class Policy(unittest.TestCase):
             rc, r, out = route(*args)
             self.assertEqual(rc, 0, out)
             self.assertNotEqual(r["tier"], "tiny", override)
-            self.assertEqual((r["plan"], r["approval"]), ("card", "yes"), override)
-            self.assertNotEqual(r["review"], "none", override)
+            crit = r["tier"] == "critical"
+            self.assertEqual((r["plan"], r["approval"]), ("card", "yes" if crit else "no"),
+                             override)
+            self.assertEqual(r["review"] != "none", crit, override)
 
     def test_1c_missing_facts_are_not_tiny(self):
         _, r, _ = route("--track", "coding", "--critical", "none")
         self.assertEqual(r["tier"], "planned")
 
-    def test_2_medium_task_plans_and_waits(self):
+    def test_2_medium_task_plans_without_waiting_or_a_reviewer(self):
+        # e2e benchmark: the approval wait cost a turn; the Sonnet reviewer found nothing.
         _, r, _ = route(*FEATURE)
-        self.assertEqual((r["tier"], r["plan"], r["approval"]), ("planned", "card", "yes"))
-        self.assertEqual(r["review"], "reviewer·sonnet·low")
+        self.assertEqual((r["tier"], r["plan"], r["approval"]), ("planned", "card", "no"))
+        self.assertEqual(r["review"], "none")
         self.assertEqual(r["escalate"], "none")
 
     def test_3_cheapest_suitable_executor(self):
         cases = {
             FEATURE: "R3·haiku-high",
-            FEATURE[:-6] + ("--checks", "no", "--shape", "feature"): "R4·sonnet-high",
+            FEATURE[:-6] + ("--checks", "no", "--shape", "feature"): "R4·sonnet-medium",
             ("--track", "coding", "--critical", "none", "--behaviour", "no", "--files", "40",
              "--lines", "80", "--checks", "yes", "--shape", "mechanical"): "R2·haiku-medium",
             ("--track", "coding", "--critical", "none", "--files", "3", "--lines", "90",
-             "--shape", "tricky", "--checks", "yes"): "R4·sonnet-high",
+             "--shape", "tricky", "--checks", "yes"): "R4·sonnet-medium",
             ("--track", "coding", "--critical", "none", "--files", "3", "--lines", "90",
              "--shape", "judgement"): "R6·opus-medium",
             ("--track", "coding", "--critical", "none", "--files", "1", "--lines", "12",
              "--checks", "yes"): "inline",
-            # From a Sonnet seat a sonnet-high subagent pays only when the work is wide.
+            # From a Sonnet seat a Sonnet subagent pays only when the work is wide.
             ("--track", "coding", "--critical", "none", "--files", "2", "--lines", "40",
              "--shape", "tricky"): "inline",
             ("--track", "coding", "--critical", "none", "--files", "2", "--lines", "40"): "inline",
             ("--track", "coding", "--critical", "none", "--files", "2", "--lines", "60"):
-                "R4·sonnet-high",
+                "R4·sonnet-medium",
         }
         for args, want in cases.items():
             _, r, out = route(*args)
@@ -110,8 +113,7 @@ class Policy(unittest.TestCase):
     def test_3b_mechanical_but_big_is_fast_planned(self):
         _, r, _ = route("--track", "coding", "--critical", "none", "--behaviour", "no",
                         "--files", "40", "--lines", "80", "--shape", "mechanical")
-        self.assertEqual((r["tier"], r["mode"], r["review"]),
-                         ("planned", "FAST", "reviewer·sonnet·low"))
+        self.assertEqual((r["tier"], r["mode"], r["review"]), ("planned", "FAST", "none"))
 
     def test_4_high_risk_small_diff_keeps_safeguards(self):
         for trigger, review in (("auth", "reviewer·opus·high"),
@@ -190,7 +192,7 @@ class Policy(unittest.TestCase):
         self.assertEqual((r["tier"], r["plan"], r["review"], r["writing"]),
                          ("tiny", "none", "none", "direct"))
         _, r, _ = route("--track", "mixed", *FEATURE[2:])
-        self.assertEqual((r["tier"], r["approval"], r["writing"]), ("planned", "yes", "direct"))
+        self.assertEqual((r["tier"], r["approval"], r["writing"]), ("planned", "no", "direct"))
         args = list(TINY_CSS[2:])
         args[args.index("--critical") + 1] = "money"
         _, r, _ = route("--track", "mixed", *args)
@@ -415,17 +417,20 @@ class Docs(unittest.TestCase):
                      "`fix=reroute-coding`", "`escalate=ask`"):
             self.assertIn(rule, o, rule)
 
-    def test_plan_fits_8_lines_and_waits_for_go(self):
+    def test_plan_fits_8_lines_and_waits_only_when_approval_is_due(self):
         p = self.ref("planned")
-        self.assertIn("≤ 8 lines, no code, then stop and wait", p)
+        self.assertIn("≤ 8 lines, no code", p)
+        self.assertIn("`approval=yes`: stop", p)
         self.assertIn("Approve with `/sharaqi go`", p)
-        self.assertIn("at most two repairs", p)
+        self.assertIn("`approval=no`:\n   continue in the same turn", p)
         self.assertIn("`--failed 2`", p)
+        self.assertIn("test each\n   decision", p)
+        self.assertIn("at most two repairs", self.ref("critical"))
 
     def test_delegate_names_every_executor_route_py_emits(self):
         d = self.ref("delegate")
         for rung in ("R2 `sharaqi:implementer` haiku medium", "R3 implementer haiku high",
-                     "R4 implementer sonnet high", "R8 implementer haiku low",
+                     "R4 implementer sonnet medium", "R8 implementer haiku low",
                      "R6 implementer opus medium", "reviewer `sharaqi:reviewer`",
                      "planner `sharaqi:planner`", "starts `escalate:"):
             self.assertIn(rung, d, rung)
@@ -454,6 +459,50 @@ class Docs(unittest.TestCase):
             text = read(f)
             self.assertNotIn("اكتب «نفّذ inline بلا كارت»", text, f)
             self.assertNotIn("No size, mode or cosmetic exception", text, f)
+
+
+
+class SessionAndResearch(unittest.TestCase):
+    """--session logs a reroute event agent-audit.sh follows; --research sets a depth floor."""
+
+    def run_in(self, cfg, *args):
+        env = dict(os.environ, CLAUDE_CONFIG_DIR=cfg)
+        return subprocess.run([sys.executable, "-I", SCRIPT, *args], capture_output=True,
+                              text=True, env=env)
+
+    def test_session_writes_a_reroute_event_without_the_session_id(self):
+        import json
+        with tempfile.TemporaryDirectory() as cfg:
+            p = self.run_in(cfg, "--track", "coding", "--critical", "none", "--files", "3",
+                            "--lines", "90", "--shape", "judgement", "--session", "s-1")
+            self.assertEqual(p.returncode, 0, p.stderr)
+            with open(os.path.join(cfg, "sharaqi-state", "s-1.events.jsonl")) as fh:
+                ev = json.loads(fh.readlines()[-1])
+            self.assertEqual(ev["event"], "reroute")
+            self.assertIn("executor=R6", ev["route"])
+            self.assertIn("--shape judgement", ev["args"])
+            self.assertNotIn("s-1", ev["args"])
+
+    def test_bad_session_id_is_not_logged_and_still_routes(self):
+        with tempfile.TemporaryDirectory() as cfg:
+            p = self.run_in(cfg, "--track", "coding", "--critical", "none",
+                            "--session", "../x")
+            self.assertEqual(p.returncode, 0, p.stderr)
+            self.assertIn("ROUTE ", p.stdout)
+            self.assertFalse(os.path.exists(os.path.join(cfg, "sharaqi-state")))
+
+    def test_research_sets_a_floor_and_stays_inline(self):
+        code, r, out = route("--track", "noncoding", "--research", "yes")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(r["executor"], "inline")
+        self.assertEqual(r["research"], "searches>=6,sources>=10")
+        self.assertEqual(r["checks"], "links")
+        code, r, out = route("--track", "noncoding", "--research", "no")
+        self.assertNotIn("research", r)
+
+    def test_research_is_noncoding_only(self):
+        code, _, out = route("--track", "coding", "--critical", "none", "--research", "yes")
+        self.assertNotEqual(code, 0, out)
 
 
 if __name__ == "__main__":

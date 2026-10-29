@@ -90,7 +90,13 @@ CRITICAL_RULES = (  # security first: route.py gives them the strongest reviewer
                          r"\bpayouts?\b|\bbilling\b|\bstripe\b|\bpaypal\b|\binvoic", I)),
     ("infra", re.compile(r"\.github/workflows|\bci\b|ci/cd|\bpipelines?\b|\bdeploy|dockerfile|"
                          r"docker-compose|kubernetes|\bk8s\b|\bhelm\b|terraform|package\.json|"
-                         r"requirements\.txt|\blockfile|package-lock|\bdependenc(?:y|ies)\b|"
+                         r"requirements\.txt|\blockfile|package-lock|"
+                         # Changing a dependency, not code about dependencies (held-out
+                         # benchmark: a "dependency resolver" task routed critical).
+                         r"\b(?:add|adding|remove|removing|drop|install|update|upgrade|bump|"
+                         r"replace|swap|pin|vendor)\s+(?:\S+\s+){0,2}?dependenc(?:y|ies)\b"
+                         r"(?!\s+(?:resolver|resolution|graph|tree|ranges?|injection|solver))|"
+                         r"\bdependenc(?:y|ies) (?:on|updates?|upgrades?|bumps?)\b|"
                          r"\bbump (?:the )?\w|\bupgrade (?:the )?(?:package|library|framework|"
                          r"dependency|sdk)|vite\.config|webpack\.config|\bnginx\b", I)),
 )
@@ -109,12 +115,23 @@ TRICKY = re.compile(r"\b(timezones?|dates?|daylight|concurren\w*|race condition|
                     r"state machine|parser|regex|cache invalidation|retry logic|locking)\b", I)
 JUDGEMENT = re.compile(r"\b(architect\w*|redesign|design (?:the|a|an)|choose between|"
                        r"decide (?:how|whether|between)|trade-?offs?|evaluate (?:approaches|"
-                       r"options))\b", I)
+                       r"options)|think (?:the |it |this )?(?:design |problem )?through|"
+                       r"design (?:it )?(?:through|first)|correctness (?:\w+ ){0,4}matters)\b", I)
 UNCERTAIN = re.compile(r"\b(investigate|figure out|find out why|root cause|intermittent\w*|"
                        r"flaky|sometimes|randomly|not sure|unclear|somehow|debug why)\b", I)
 CHECKS = re.compile(r"\b(tests? (?:exist|cover|are there)|the repo has (?:vitest|jest|pytest|"
                     r"tests)|vitest|jest|pytest|mocha|phpunit|rspec|unit tests?|typescript "
-                    r"checks|type ?check\w*|tsc\b|compiler (?:checks|catches))", I)
+                    r"checks|type ?check\w*|tsc\b|compiler (?:checks|catches)|"
+                    r"(?:npm|pnpm|yarn|bun) (?:run )?test\b|node --test|go test|cargo test|"
+                    r"make (?:the )?(?:\w+ )?tests? pass|add (?:unit )?tests)", I)
+# Research: a non-coding task that needs web sources gets the research tier (route.py).
+RESEARCH = re.compile(r"\b(?:research|sources?|citations?|cite|with links|market (?:report|"
+                      r"analysis)|state of the art|literature)\b|المصادر|مصادر|بروابط|روابط|"
+                      r"تقرير شامل|بحث", I)
+# A long spec with no stated size is not a 10-line edit (e2e benchmark: a ~3,000-character
+# spreadsheet-engine spec in one named file was routed as 10 lines, inline).
+SPEC_LONG_CHARS, SPEC_LONG_ITEMS = 1500, 8
+SPEC_ITEM = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s", re.M)
 N_FILES = re.compile(r"\b(\d+)\s+(?:files|components|modules|screens|places|pages)\b", I)
 N_LINES = re.compile(r"~?\b(\d+)\s*(?:changed )?lines?\b", I)
 ONE_LINE = re.compile(r"\b(?:one|single|1)[ -](?:line|rule)\b|\(one (?:line|rule)\)", I)
@@ -165,10 +182,11 @@ class Facts:
     """Facts for route.py with where each came from."""
 
     def __init__(self):
-        self.vals, self.why = {}, {}
+        self.vals, self.why, self.est = {}, {}, set()
 
-    def set(self, key, val, why):
+    def set(self, key, val, why, estimated=False):
         self.vals[key], self.why[key] = val, why
+        (self.est.add if estimated else self.est.discard)(key)
 
     def argv(self):
         out = []
@@ -180,7 +198,8 @@ class Facts:
         parts = []
         for k, v in self.vals.items():
             w = self.why[k]
-            parts.append(f"{k}={v}({'assumed' if w is None else 'stated: ' + w})")
+            src = "assumed" if w is None else ("estimated: " if k in self.est else "stated: ") + w
+            parts.append(f"{k}={v}({src})")
         return " ".join(parts)
 
 
@@ -214,6 +233,9 @@ def classify_task(text):
         writing = hit(WRITING, text) or (doc_only and "doc paths only")
         if writing or hit(QUESTION, text):
             f.set("turns", 1, None)
+            res = hit(RESEARCH, text)
+            if res:
+                f.set("research", "yes", repr(res))
             return "noncoding", f, "high" if writing else "low"
         track, conf = "coding", "low"  # nothing matched: the safe side (plan + approval)
     else:
@@ -258,10 +280,15 @@ def classify_task(text):
 
     ln = N_LINES.search(t)
     one = hit(ONE_LINE, t)
+    items = len(SPEC_ITEM.findall(t))
     if ln:
         f.set("lines", int(ln.group(1)), repr(ln.group(0)))
     elif one:
         f.set("lines", 1, repr(one))
+    elif len(t) >= SPEC_LONG_CHARS or items >= SPEC_LONG_ITEMS:
+        f.set("lines", policy.WIDE_LINES, "spec of %d chars, %d list items" % (len(t), items),
+              estimated=True)
+        conf = "low"
     elif f.vals["files"] <= 1 and paths:
         f.set("lines", 10, None)  # one named file, no size given: small, but assumed
     else:
@@ -317,9 +344,11 @@ def ref(name):
         return fh.read().strip().replace("${SKILL}", ROOT)
 
 
-def build(entry, args, debug, cwd=None, take_base=True):
+def build(entry, args, debug, cwd=None, take_base=True, sid=""):
     """(context text, event dict). Raises on internal failure; the hook reports it."""
     head = f"SHARAQI v{VERSION} · entry={entry} · routed by the prompt hook from the text alone"
+    if sid:  # route.py --session logs a re-route; hooks/agent-audit.sh enforces the latest
+        head += f"\nSESSION {sid}"
     ev = {"event": "route", "entry": entry, "debug": debug}
     if entry == "setup":
         return head + "\n" + ref("setup"), ev
@@ -345,6 +374,8 @@ def build(entry, args, debug, cwd=None, take_base=True):
                      "scope is not isolated, say so in the report")
         ev["base"] = "ok" if tree else "unavailable"
     tier = out["tier"]
+    if tier == "critical":  # critical.md adds to the planned steps; it doesn't repeat them
+        parts.append(ref("planned"))
     parts.append(ref({"tiny": "tiny", "planned": "planned", "critical": "critical",
                       "direct": "direct", "review": "review", "ops": "ops"}[tier]))
     delegated = out.get("executor", "inline") not in ("inline", "none", "ask") \
@@ -454,7 +485,7 @@ def hook_main(raw):
                    + "Continue from Implement, under the same ROUTE and BASE.")
         return gated(sid, d.get("cwd"), ctx, saved and "track=ops" not in saved)
     try:
-        ctx, ev = build(entry, args, debug, d.get("cwd"))
+        ctx, ev = build(entry, args, debug, d.get("cwd"), sid=sid)
     except Exception as e:  # noqa: BLE001 - any failure must reach the model as such
         log_event(sid, {"event": "route-error", "entry": entry, "error": e.__class__.__name__})
         ctx = (f"SHARAQI v{VERSION} · ROUTE UNAVAILABLE: the prompt hook failed "

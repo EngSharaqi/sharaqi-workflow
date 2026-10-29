@@ -1,0 +1,216 @@
+diff --git a/src/app.js b/src/app.js
+index 8cfd6a3..512f60a 100644
+--- a/src/app.js
++++ b/src/app.js
+@@ -1,5 +1,25 @@
+-import { send } from './http.js';
+-import { getProduct, listProducts } from './store.js';
++import { readJson, send } from './http.js';
++import { getOrder, getProduct, listProducts, placeOrder } from './store.js';
++
++function validateItems(body) {
++    if (body === null || typeof body !== 'object' || !Array.isArray(body.items) || body.items.length === 0) {
++        return 'items must be a non-empty array';
++    }
++    for (const line of body.items) {
++        if (line === null || typeof line !== 'object') return 'each item must be an object';
++        if (typeof line.sku !== 'string' || line.sku === '') return 'sku must be a non-empty string';
++        if (!Number.isSafeInteger(line.qty) || line.qty <= 0) return 'qty must be a positive integer';
++    }
++    return null;
++}
++
++function safeDecode(s) {
++    try {
++        return decodeURIComponent(s);
++    } catch {
++        return s;
++    }
++}
+ 
+ export async function handler(req, res) {
+     const url = new URL(req.url, 'http://localhost');
+@@ -12,6 +32,22 @@ export async function handler(req, res) {
+             const p = getProduct(decodeURIComponent(parts[1]));
+             return p ? send(res, 200, p) : send(res, 404, { error: 'not found' });
+         }
++        if (req.method === 'POST' && url.pathname === '/orders') {
++            let body;
++            try {
++                body = await readJson(req);
++            } catch {
++                return send(res, 400, { error: 'invalid JSON' });
++            }
++            const problem = validateItems(body);
++            if (problem) return send(res, 400, { error: problem });
++            const { order, error } = placeOrder(body.items);
++            return error ? send(res, error.status, error.body) : send(res, 201, order);
++        }
++        if (req.method === 'GET' && parts[0] === 'orders' && parts.length === 2) {
++            const o = getOrder(safeDecode(parts[1]));
++            return o ? send(res, 200, o) : send(res, 404, { error: 'not found' });
++        }
+         return send(res, 404, { error: 'not found' });
+     } catch (err) {
+         return send(res, 500, { error: 'internal error' });
+diff --git a/src/store.js b/src/store.js
+index 1ffeaf6..6d4e595 100644
+--- a/src/store.js
++++ b/src/store.js
+@@ -1,3 +1,5 @@
++import { randomUUID } from 'node:crypto';
++
+ // In-memory catalogue. Prices are integer cents.
+ const SEED = [
+     { sku: 'PEN-BLK', name: 'Black pen', price: 150, stock: 40 },
+@@ -7,9 +9,11 @@ const SEED = [
+ ];
+ 
+ let products = new Map();
++let orders = new Map();
+ 
+ export function reset() {
+     products = new Map(SEED.map((p) => [p.sku, { ...p }]));
++    orders = new Map();
+ }
+ 
+ export function listProducts() {
+@@ -21,4 +25,35 @@ export function getProduct(sku) {
+     return p ? { ...p } : undefined;
+ }
+ 
++export function getOrder(id) {
++    const o = orders.get(id);
++    return o ? structuredClone(o) : undefined;
++}
++
++// Lines must already be validated. Returns { order } or { error }; stock changes only on success.
++export function placeOrder(lines) {
++    const merged = new Map();
++    for (const { sku, qty } of lines) merged.set(sku, (merged.get(sku) ?? 0) + qty);
++    for (const sku of merged.keys()) {
++        if (!products.has(sku)) return { error: { status: 404, body: { error: 'unknown sku', sku } } };
++    }
++    for (const [sku, qty] of merged) {
++        const available = products.get(sku).stock;
++        if (qty > available) {
++            return { error: { status: 409, body: { error: 'insufficient stock', sku, available } } };
++        }
++    }
++    const items = [];
++    let total = 0;
++    for (const [sku, qty] of merged) {
++        const p = products.get(sku);
++        p.stock -= qty;
++        items.push({ sku, qty, price: p.price });
++        total += p.price * qty;
++    }
++    const order = { id: randomUUID(), items, total };
++    orders.set(order.id, order);
++    return { order: structuredClone(order) };
++}
++
+ reset();
+diff --git a/test/orders.test.js b/test/orders.test.js
+new file mode 100644
+index 0000000..921a011
+--- /dev/null
++++ b/test/orders.test.js
+@@ -0,0 +1,97 @@
++import assert from 'node:assert/strict';
++import { test } from 'node:test';
++
++import { withServer } from './helpers.js';
++
++const post = (base, body, raw = false) =>
++    fetch(`${base}/orders`, {
++        method: 'POST',
++        headers: { 'content-type': 'application/json' },
++        body: raw ? body : JSON.stringify(body),
++    });
++const stock = async (base, sku) => (await (await fetch(`${base}/products/${sku}`)).json()).stock;
++
++test('400 for malformed bodies', () =>
++    withServer(async (base) => {
++        const bad = [
++            ['{nope', true],
++            ['', true],
++            ['null', true],
++            [{}],
++            [{ items: 'x' }],
++            [{ items: [] }],
++            [{ items: [null] }],
++            [{ items: [{ qty: 1 }] }],
++            [{ items: [{ sku: '', qty: 1 }] }],
++            [{ items: [{ sku: 5, qty: 1 }] }],
++            [{ items: [{ sku: 'PEN-BLK', qty: 0 }] }],
++            [{ items: [{ sku: 'PEN-BLK', qty: -1 }] }],
++            [{ items: [{ sku: 'PEN-BLK', qty: 1.5 }] }],
++            [{ items: [{ sku: 'PEN-BLK', qty: '2' }] }],
++            [{ items: [{ sku: 'PEN-BLK' }] }],
++        ];
++        for (const [b, raw] of bad) {
++            const r = await post(base, b, raw);
++            assert.equal(r.status, 400, JSON.stringify(b));
++            assert.equal(typeof (await r.json()).error, 'string');
++        }
++    }));
++
++test('400 beats 404 and 409', () =>
++    withServer(async (base) => {
++        const r = await post(base, { items: [{ sku: 'NOPE', qty: 1 }, { sku: 'PEN-BLK', qty: 0 }] });
++        assert.equal(r.status, 400);
++    }));
++
++test('404 for first unknown sku, before 409, with no stock change', () =>
++    withServer(async (base) => {
++        const r = await post(base, {
++            items: [{ sku: 'BAG-TOTE', qty: 1 }, { sku: 'X2', qty: 1 }, { sku: 'X1', qty: 1 }, { sku: 'PEN-BLK', qty: 1 }],
++        });
++        assert.equal(r.status, 404);
++        assert.deepEqual(await r.json(), { error: 'unknown sku', sku: 'X2' });
++        assert.equal(await stock(base, 'PEN-BLK'), 40);
++    }));
++
++test('409 for first short sku, counting duplicate lines together, all-or-nothing', () =>
++    withServer(async (base) => {
++        const r = await post(base, {
++            items: [{ sku: 'PEN-BLK', qty: 1 }, { sku: 'PEN-RED', qty: 3 }, { sku: 'PEN-RED', qty: 3 }, { sku: 'BAG-TOTE', qty: 1 }],
++        });
++        assert.equal(r.status, 409);
++        assert.deepEqual(await r.json(), { error: 'insufficient stock', sku: 'PEN-RED', available: 5 });
++        assert.equal(await stock(base, 'PEN-BLK'), 40);
++        assert.equal(await stock(base, 'PEN-RED'), 5);
++    }));
++
++test('201 merges lines, totals, decrements stock, and GET returns the order', () =>
++    withServer(async (base) => {
++        const r = await post(base, {
++            items: [{ sku: 'NOTE-A5', qty: 1 }, { sku: 'PEN-BLK', qty: 2 }, { sku: 'NOTE-A5', qty: 2 }, { sku: 'PEN-RED', qty: 5 }],
++        });
++        assert.equal(r.status, 201);
++        const order = await r.json();
++        assert.equal(typeof order.id, 'string');
++        assert.deepEqual(order.items, [
++            { sku: 'NOTE-A5', qty: 3, price: 425 },
++            { sku: 'PEN-BLK', qty: 2, price: 150 },
++            { sku: 'PEN-RED', qty: 5, price: 150 },
++        ]);
++        assert.equal(order.total, 3 * 425 + 2 * 150 + 5 * 150);
++        assert.equal(await stock(base, 'NOTE-A5'), 9);
++        assert.equal(await stock(base, 'PEN-BLK'), 38);
++        assert.equal(await stock(base, 'PEN-RED'), 0);
++
++        const g = await fetch(`${base}/orders/${order.id}`);
++        assert.equal(g.status, 200);
++        assert.deepEqual(await g.json(), order);
++    }));
++
++test('GET unknown order is 404', () =>
++    withServer(async (base) => {
++        for (const id of ['nope', '%E0%A4%A']) {
++            const r = await fetch(`${base}/orders/${id}`);
++            assert.equal(r.status, 404);
++            assert.deepEqual(await r.json(), { error: 'not found' });
++        }
++    }));

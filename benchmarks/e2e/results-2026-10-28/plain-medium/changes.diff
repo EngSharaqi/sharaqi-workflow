@@ -1,0 +1,234 @@
+diff --git a/src/app.js b/src/app.js
+index dac4d32..d68ae89 100644
+--- a/src/app.js
++++ b/src/app.js
+@@ -20,6 +20,71 @@ function readJson(req) {
+ }
+ 
+ const STATUSES = ['open', 'done'];
++const SORTS = ['created', '-created', 'title', '-title'];
++
++class QueryError extends Error {
++    constructor(field, message) {
++        super(message);
++        this.field = field;
++    }
++}
++
++// Missing -> default; present -> must be a plain decimal integer within [min, max].
++function intParam(params, name, def, min, max) {
++    const raw = params.get(name);
++    if (raw === null) return def;
++    const n = /^-?\d+$/.test(raw) ? Number(raw) : NaN;
++    if (!Number.isSafeInteger(n) || n < min || n > max) {
++        const range = max === Infinity ? `>= ${min}` : `between ${min} and ${max}`;
++        throw new QueryError(name, `${name} must be an integer ${range}`);
++    }
++    return n;
++}
++
++function parseListQuery(params) {
++    const status = params.get('status');
++    if (status !== null && !STATUSES.includes(status)) {
++        throw new QueryError('status', `status must be one of: ${STATUSES.join(', ')}`);
++    }
++    const sort = params.get('sort') ?? 'created';
++    if (!SORTS.includes(sort)) {
++        throw new QueryError('sort', `sort must be one of: ${SORTS.join(', ')}`);
++    }
++    return {
++        status,
++        q: params.get('q') ?? '',
++        sort,
++        page: intParam(params, 'page', 1, 1, Infinity),
++        limit: intParam(params, 'limit', 20, 1, 100),
++    };
++}
++
++function listTasks({ status, q, sort, page, limit }) {
++    const needle = q.toLowerCase();
++    const matches = store
++        .all()
++        .filter((t) => (status === null || t.status === status) && (!needle || t.title.toLowerCase().includes(needle)));
++
++    const key = sort.replace(/^-/, '');
++    const dir = sort.startsWith('-') ? -1 : 1;
++    const value = key === 'title' ? (t) => t.title.toLowerCase() : (t) => t.created;
++    matches.sort((a, b) => {
++        const va = value(a);
++        const vb = value(b);
++        if (va !== vb) return (va < vb ? -1 : 1) * dir;
++        return a.id - b.id;
++    });
++
++    const total = matches.length;
++    const start = (page - 1) * limit;
++    return {
++        items: matches.slice(start, start + limit),
++        page,
++        limit,
++        total,
++        totalPages: Math.ceil(total / limit),
++    };
++}
+ 
+ export async function handler(req, res) {
+     const url = new URL(req.url, 'http://localhost');
+@@ -28,7 +93,14 @@ export async function handler(req, res) {
+     if (parts[0] !== 'tasks') return send(res, 404, { error: { message: 'not found' } });
+ 
+     if (parts.length === 1 && req.method === 'GET') {
+-        return send(res, 200, store.all());
++        let query;
++        try {
++            query = parseListQuery(url.searchParams);
++        } catch (err) {
++            if (!(err instanceof QueryError)) throw err;
++            return send(res, 400, { error: { field: err.field, message: err.message } });
++        }
++        return send(res, 200, listTasks(query));
+     }
+ 
+     if (parts.length === 1 && req.method === 'POST') {
+diff --git a/test/list.test.js b/test/list.test.js
+new file mode 100644
+index 0000000..3e5fb77
+--- /dev/null
++++ b/test/list.test.js
+@@ -0,0 +1,136 @@
++import assert from 'node:assert/strict';
++import { beforeEach, test } from 'node:test';
++
++import * as store from '../src/store.js';
++import { withServer } from './helpers.js';
++
++// ids 1..5; created timestamps deliberately out of id order, with a tie between 2 and 4.
++beforeEach(() =>
++    store.reset([
++        { title: 'Buy milk', status: 'open', created: '2024-01-03T00:00:00.000Z' },
++        { title: 'apple pie', status: 'done', created: '2024-01-01T00:00:00.000Z' },
++        { title: 'Call MOM', status: 'open', created: '2024-01-05T00:00:00.000Z' },
++        { title: 'banana', status: 'open', created: '2024-01-01T00:00:00.000Z' },
++        { title: 'Apple pie', status: 'done', created: '2024-01-04T00:00:00.000Z' },
++    ]),
++);
++
++async function get(base, qs = '') {
++    const r = await fetch(`${base}/tasks${qs}`);
++    return { status: r.status, body: await r.json() };
++}
++
++const ids = (body) => body.items.map((t) => t.id);
++
++test('defaults: sorted by created asc, page 1, limit 20, envelope fields', () =>
++    withServer(async (base) => {
++        const { status, body } = await get(base);
++        assert.equal(status, 200);
++        assert.deepEqual(ids(body), [2, 4, 1, 5, 3]);
++        assert.equal(body.page, 1);
++        assert.equal(body.limit, 20);
++        assert.equal(body.total, 5);
++        assert.equal(body.totalPages, 1);
++    }));
++
++test('status filter', () =>
++    withServer(async (base) => {
++        const { body } = await get(base, '?status=done');
++        assert.deepEqual(ids(body), [2, 5]);
++        assert.equal(body.total, 2);
++        assert.deepEqual(ids((await get(base, '?status=open')).body), [4, 1, 3]);
++    }));
++
++test('q is a case-insensitive substring match on title', () =>
++    withServer(async (base) => {
++        assert.deepEqual(ids((await get(base, '?q=APPLE')).body), [2, 5]);
++        assert.deepEqual(ids((await get(base, '?q=mom')).body), [3]);
++        assert.deepEqual(ids((await get(base, '?q=zzz')).body), []);
++    }));
++
++test('empty q means no filter', () =>
++    withServer(async (base) => {
++        assert.equal((await get(base, '?q=')).body.total, 5);
++    }));
++
++test('status and q combine', () =>
++    withServer(async (base) => {
++        assert.deepEqual(ids((await get(base, '?status=open&q=a')).body), [4, 3]);
++        assert.deepEqual(ids((await get(base, '?status=open&q=apple')).body), []);
++    }));
++
++test('sort options, ties broken by id ascending', () =>
++    withServer(async (base) => {
++        assert.deepEqual(ids((await get(base, '?sort=created')).body), [2, 4, 1, 5, 3]);
++        assert.deepEqual(ids((await get(base, '?sort=-created')).body), [3, 5, 1, 2, 4]);
++        // "apple pie" (2) and "Apple pie" (5) tie case-insensitively.
++        assert.deepEqual(ids((await get(base, '?sort=title')).body), [2, 5, 4, 1, 3]);
++        assert.deepEqual(ids((await get(base, '?sort=-title')).body), [3, 1, 4, 2, 5]);
++    }));
++
++test('pagination', () =>
++    withServer(async (base) => {
++        let { body } = await get(base, '?limit=2');
++        assert.deepEqual(ids(body), [2, 4]);
++        assert.equal(body.totalPages, 3);
++        ({ body } = await get(base, '?limit=2&page=3'));
++        assert.deepEqual(ids(body), [3]);
++        assert.equal(body.page, 3);
++        assert.equal(body.total, 5);
++    }));
++
++test('page past the end returns 200 with empty items', () =>
++    withServer(async (base) => {
++        const { status, body } = await get(base, '?limit=2&page=99');
++        assert.equal(status, 200);
++        assert.deepEqual(body.items, []);
++        assert.equal(body.total, 5);
++        assert.equal(body.totalPages, 3);
++    }));
++
++test('totalPages is 0 when nothing matches', () =>
++    withServer(async (base) => {
++        const { body } = await get(base, '?q=nothing');
++        assert.equal(body.total, 0);
++        assert.equal(body.totalPages, 0);
++    }));
++
++test('limit bounds 1 and 100 are accepted', () =>
++    withServer(async (base) => {
++        assert.equal((await get(base, '?limit=1')).body.items.length, 1);
++        assert.equal((await get(base, '?limit=100')).status, 200);
++    }));
++
++test('unknown parameters are ignored', () =>
++    withServer(async (base) => {
++        const { status, body } = await get(base, '?foo=bar&status=done');
++        assert.equal(status, 200);
++        assert.deepEqual(ids(body), [2, 5]);
++    }));
++
++for (const [qs, field] of [
++    ['status=closed', 'status'],
++    ['status=', 'status'],
++    ['status=OPEN', 'status'],
++    ['sort=name', 'sort'],
++    ['sort=', 'sort'],
++    ['page=0', 'page'],
++    ['page=-1', 'page'],
++    ['page=2.5', 'page'],
++    ['page=abc', 'page'],
++    ['page=', 'page'],
++    ['page=1e2', 'page'],
++    ['limit=0', 'limit'],
++    ['limit=101', 'limit'],
++    ['limit=2.5', 'limit'],
++    ['limit=abc', 'limit'],
++    ['limit= 5', 'limit'],
++]) {
++    test(`invalid ${qs} is 400 on field ${field}`, () =>
++        withServer(async (base) => {
++            const { status, body } = await get(base, `?${qs}`);
++            assert.equal(status, 400);
++            assert.equal(body.error.field, field);
++            assert.equal(typeof body.error.message, 'string');
++        }));
++}

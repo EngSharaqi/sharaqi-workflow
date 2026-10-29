@@ -1,0 +1,36 @@
+diff --git a/src/duration.js b/src/duration.js
+index af84556..312ed67 100644
+--- a/src/duration.js
++++ b/src/duration.js
+@@ -4,10 +4,10 @@ export function formatDuration(ms) {
+     if (!Number.isFinite(ms) || ms < 0) {
+         throw new RangeError(`formatDuration: expected a non-negative number, got ${ms}`);
+     }
+-    const totalSec = ms / 1000;
++    const totalSec = Math.round(ms / 1000);
+     const h = Math.floor(totalSec / 3600);
+     const m = Math.floor((totalSec % 3600) / 60);
+-    const s = Math.round(totalSec % 60);
++    const s = totalSec % 60;
+     const parts = [];
+     if (h) parts.push(`${h}h`);
+     if (h || m) parts.push(`${m}m`);
+diff --git a/test/duration.test.js b/test/duration.test.js
+index f2b6406..1851adc 100644
+--- a/test/duration.test.js
++++ b/test/duration.test.js
+@@ -11,6 +11,14 @@ test('formats whole units', () => {
+     assert.equal(formatDuration(3723000), '1h 2m 3s');
+ });
+ 
++test('rounds to the nearest second before splitting, so seconds never show 60', () => {
++    assert.equal(formatDuration(119999), '2m 0s');
++    assert.equal(formatDuration(59999), '1m 0s');
++    assert.equal(formatDuration(3599999), '1h 0m 0s');
++    assert.equal(formatDuration(1499), '1s');
++    assert.equal(formatDuration(1500), '2s');
++});
++
+ test('rejects bad input', () => {
+     assert.throws(() => formatDuration(-1), RangeError);
+     assert.throws(() => formatDuration(NaN), RangeError);

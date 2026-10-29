@@ -7,7 +7,13 @@
 #    /sharaqi turn, and the turn that receives its result runs on the session's model (Opus
 #    in the benchmark), not the Sonnet seat: checked on Claude Code 2.1.312 with a stand-in
 #    API. Several foreground calls in one message still run side by side.
-# 3. Logs every call it sees, allowed or blocked, as one JSON line in
+# 3. Follows the route: the latest `route` or `reroute` event in the session's events log
+#    (scripts/classify.py, or route.py --session after a corrected fact) decides whether an
+#    implementer or reviewer may run. executor=inline|none|ask blocks sharaqi:implementer;
+#    review=none blocks sharaqi:reviewer. No route event (hook failed, not a /sharaqi run):
+#    not checked. The e2e benchmark's complex task went to a Sonnet·high implementer against
+#    executor=inline, with no re-route.
+# 4. Logs every call it sees, allowed or blocked, as one JSON line in
 #    <config>/sharaqi-state/<session>.events.jsonl: subagent type, model, effort, escalation,
 #    decision. Never the prompt. The log stays outside the model's context.
 # Unreadable input (no parser) in a run: an Opus call can't be told apart, so the call is
@@ -62,6 +68,16 @@ elif printf '%s' "$m" | grep -qi opus && case "$esc" in critical | failed-twice 
 elif [ "$bg" != "false" ]; then
   decision=block reason=background
 fi
+rexec="" rrev=""
+if [ "$decision" = allow ]; then
+  last=$(grep -E '"event": ?"(route|reroute)"' "$dir/$sid.events.jsonl" 2>/dev/null | tail -1)
+  rexec=$(printf '%s' "$last" | sed -n 's/.*[" ]executor=\([^ "]*\).*/\1/p')
+  rrev=$(printf '%s' "$last" | sed -n 's/.*[" ]review=\([^ "]*\).*/\1/p')
+  case "$t:$rexec" in
+    *implementer:inline | *implementer:none | *implementer:ask) decision=block reason=route ;;
+  esac
+  case "$t:$rrev" in *reviewer:none) decision=block reason=route ;; esac
+fi
 ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 mkdir -p "$dir" 2>/dev/null && printf '{"event":"agent","ts":"%s","subagent_type":"%s","model":"%s","effort":"%s","escalate":"%s","background":"%s","from_subagent":"%s","decision":"%s","reason":"%s"}\n' \
   "$ts" "$t" "$m" "$e" "$(clean "$esc")" "$(clean "$bg")" "$p" "$decision" "$reason" \
@@ -69,6 +85,9 @@ mkdir -p "$dir" 2>/dev/null && printf '{"event":"agent","ts":"%s","subagent_type
 case "$reason" in
   escalation)
     echo "Blocked by sharaqi: an Opus Agent call needs a logged reason. Start its description with escalate:critical, escalate:failed-twice or escalate:reasoning, as the ROUTE's escalate= says; otherwise use sonnet or haiku." >&2
+    exit 2 ;;
+  route)
+    echo "Blocked by sharaqi: the ROUTE says executor=$rexec review=$rrev, which doesn't allow $t. Do the work inline, or, if a fact was wrong, re-run route.py with the corrected facts and --session <the SESSION line> (that logs the re-route), name the fact that changed, then call again." >&2
     exit 2 ;;
   background)
     echo "Blocked by sharaqi: set run_in_background: false. A background agent's result returns in a turn on the session's model, not the Sonnet seat. Several foreground Agent calls in one message still run in parallel." >&2

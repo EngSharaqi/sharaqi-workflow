@@ -18,11 +18,13 @@ No `SHARAQI` context means the hook didn't run: say so, judge the facts yourself
 `python3 -I "${CLAUDE_SKILL_DIR}/scripts/route.py" --track <t> <facts>` and follow
 `${CLAUDE_SKILL_DIR}/references/routes/<tier>.md`.
 
-1. **Facts.** `assumed` facts may be wrong. After your first reads, correct them by
-   re-running route.py, and name the fact that changed. A CRITICAL trigger stays.
+1. **Facts.** `assumed` and `estimated` facts may be wrong. After your first reads, correct
+   them by re-running route.py with `--session <SESSION>`, and name the fact that changed.
+   The hook blocks an Agent call the latest route doesn't allow. A CRITICAL trigger stays.
 2. **Opus only by escalation**: the ROUTE's `escalate=`, and an Opus Agent call's
    `description` starts `escalate:<reason>`.
-3. **Approval.** `approval=yes` stops after the plan; the user approves with `/sharaqi go`.
+3. **Approval.** Only `approval=yes` (CRITICAL) stops after the plan; the user approves
+   with `/sharaqi go`. Spec gaps elsewhere: decide, test each decision, report them.
 4. **Scope.** Do what was asked; other problems go in the report.
 5. **Evidence.** A check passed only if you ran it here; a subagent's report is a claim.
 6. **Nothing leaves the machine** (commit, push, PR, publish, email, tracker) without the

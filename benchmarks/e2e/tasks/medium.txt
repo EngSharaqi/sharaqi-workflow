@@ -1,0 +1,10 @@
+In this repo (Node 20+, no packages), `GET /tasks` returns every task as a plain array. Change it to support filtering, sorting and pagination through query parameters:
+
+- `status`: `open` or `done`; filters by status.
+- `q`: case-insensitive substring match on `title`; an empty `q` means no filter.
+- `sort`: `created` (default), `-created`, `title`, `-title`. Title sorting is case-insensitive. Ties are broken by `id` ascending.
+- `page`: integer ≥ 1, default 1. `limit`: integer 1–100, default 20.
+- Response: `{ "items": [...], "page", "limit", "total", "totalPages" }`, where `total` counts matches before pagination and `totalPages` is `ceil(total / limit)` (0 when nothing matches). A page past the end returns 200 with empty `items`.
+- An invalid value for any of these parameters returns 400 with `{ "error": { "field": "<param>", "message": "..." } }`. Non-integers such as `2.5` or `abc` are invalid. Unknown parameters are ignored.
+
+The other routes must keep working as they do now. Add tests for the new behaviour under `test/` and make `npm test` pass.

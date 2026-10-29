@@ -1,0 +1,61 @@
+{
+  "arm": "plain",
+  "task": "research",
+  "rep": "2",
+  "suite": "heldout",
+  "session_id": "44886939-b634-4651-a7d5-207d74862380",
+  "exit_code": 0,
+  "timed_out": false,
+  "wall_s": 289.1,
+  "messages_sent": [
+    {
+      "t": 0.0,
+      "text": "اعمل تقرير مقارنة عن قواعد بيانات المتجهات (vector databases) المتاحة سنة 2026، وعلى الأقل: pgvector وQdrant وMilvus وWeaviate وPinecone وChroma. لكل واحدة: الترخيص، طريقة التشغيل (self-hosted أو مُدارة)، أسعار النسخة المُدارة لو موجودة، نتايج الأداء المنشورة في بنشماركات معروفة، والحدود أو العيوب المعروفة. بعد كده فكّر واختار الأنسب لفريق من ٥ مطوّرين عنده حوالي ١٠ مليون متجه لنصوص عربي وإنجليزي، وميزانية تشغيل أقل من ٥٠٠ دولار في الشهر، وبيستخدم PostgreSQL أصلًا، واشرح سبب الاختيار والبديل التاني ومتى نغيّر. اذكر المصادر بروابطها. احفظ التقرير في ملف report.md في الريبو ده."
+    }
+  ],
+  "results": [
+    {
+      "subtype": "success",
+      "is_error": false,
+      "total_cost_usd": 2.2925762,
+      "duration_ms": 288035,
+      "duration_api_ms": 492006,
+      "num_turns": 27,
+      "modelUsage": {
+        "claude-haiku-5-5": {
+          "inputTokens": 76725,
+          "outputTokens": 15199,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.015272,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 8971,
+          "cacheCreationEphemeral5mInputTokens": 0,
+          "cacheCreationEphemeral1hInputTokens": 0,
+          "canonicalModel": "claude-haiku-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-opus-5-5": {
+          "inputTokens": 193526,
+          "outputTokens": 36687,
+          "cacheReadInputTokens": 440821,
+          "cacheCreationInputTokens": 67662,
+          "webSearchRequests": 14,
+          "costUSD": 2.2773042,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 3911,
+          "cacheCreationEphemeral5mInputTokens": 0,
+          "cacheCreationEphemeral1hInputTokens": 67662,
+          "canonicalModel": "claude-opus-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      }
+    }
+  ],
+  "final_text": "كتبت التقرير في `report.md` في جذر الريبو، ومعمولش commit.\n\n**الاختيار: pgvector** على Postgres منفصل للمتجهات بذاكرة 32 GB تقريبًا، والمتجهات بصيغة `halfvec` مع فهرس HNSW. التكلفة حوالي 350–410 دولار في الشهر: RDS `db.r7g.xlarge` بحوالي 349 دولار، أو Supabase 2XL بحوالي 410 دولار. وأقل لو شغّلتوه بنفسكم.\n- **السبب:** مفيش نظام جديد يتعلّمه الفريق ولا مزامنة بين نظامين، و10 مليون متجه حجم مريح لـ pgvector. أعلى رقم لقيته منشور: 471 استعلام في الثانية عند recall 99% على 50 مليون متجه. لكن البنشمارك ده عامله Tiger Data، وهي اللي بتطوّر pgvectorscale.\n- **التنفيذ:** يكون Postgres منفصل عن قاعدة الإنتاج، عشان بناء الفهرس وصيانته مايأثّروش على الاستعلامات العادية. ومع أي فلتر لازم تفعّلوا `iterative_scan`، لأن pgvector بيطبّق الفلتر بعد البحث في الفهرس فبيرجّع نتايج أقل من المطلوب.\n\n**البديل التاني: Qdrant.** ترخيصه Apache 2.0، ونسخته المُدارة مابتحاسبش على عدد الاستعلامات. جاب أعلى recall في VectorDBBench، والـ p99 بتاعه أحسن من pgvectorscale في مقارنة Tiger Data نفسها.\n\n**امتى نغيّر لـ Qdrant:**\n- عدد المتجهات عدّى حوالي 50 مليون.\n- زمن الاستجابة p99 مش متحقّق عند عدد الاستعلامات المطلوب، حتى بعد الضبط.\n- الـ recall بيقع مع الفلاتر.\n- فيه كتابة مستمرة كتير.\n- عزل العملاء (multi-tenancy) محتاج حاجة أقوى من partitioning.\n- إعادة بناء الفهرس بقت بتاخد ساعات.\n\n**حاجات لازم تعرفها قبل ما تعتمد على الأرقام:**\n- **البنشماركات منحازة:** كل البنشماركات الكبيرة عاملها بائع، وكل واحد بيكسب في بنشماركه. عشان كده التقرير بيوصي بتجربة على عيّنة مليون متجه من بياناتكم قبل الالتزام.\n- **أرقام أنا حاسبها:** فيه أرقام في التقرير حسبتها بنفسي ومكتوب جنبها «(تقدير)»، زي حجم البيانات وتكلفة Weaviate وChroma. لكن تقدير Pinecone عند 10 مليون (حوالي 70 دولار) جاي من موقع طرف تالت، مش من حسابي.\n- **أسعار ناقصة:** Qdrant Cloud مابينشرش سعر الساعة، والرقم الحقيقي من الحاسبة بتاعتهم بس. وأسعار RDS جاية من مواقع طرف تالت، مش من صفحة AWS الرسمية.\n- **البحث النصي العربي:** الـ stemmer العربي المدمج في Postgres ضعيف. لو عايزين بحث hybrid (نص + متجهات)، جودة البحث العربي هتعتمد غالبًا على نموذج الـ embedding متعدد اللغات.\n\nقواعد التيم بتقول إن التقارير مكانها `<ISIT_FINDINGS>`، مش جوّه الريبو. أنا حفظته في الريبو لأنك طلبت كده صراحةً. لو عايز أنسخه هناك قولّي."
+}

@@ -1,0 +1,74 @@
+<!doctype html><meta charset=utf-8><title>Scoring output, as printed</title><style>
+body{margin:0;background:#0f1115;color:#e6e6e6;font:14px/1.45 -apple-system,Segoe UI,Roboto,sans-serif;padding:28px}
+h1{font-size:20px;margin:0 0 4px}h2{font-size:15px;margin:22px 0 8px}.sub{color:#9aa0a6;margin:0 0 20px;font-size:12.5px}
+table{border-collapse:collapse;width:100%;margin-bottom:18px}
+th,td{padding:6px 9px;border-bottom:1px solid #262a33;text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}th{color:#9aa0a6;font-weight:600;font-size:12px}
+.g{color:#5fd38d}.r{color:#ff7b72}.m{color:#9aa0a6}.w{white-space:normal;text-align:left}
+.bars{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.card{background:#161a22;border:1px solid #262a33;border-radius:10px;padding:12px}
+.card h3{margin:0 0 8px;font-size:12.5px}.row{display:flex;align-items:center;gap:8px;margin:4px 0;font-size:12px}
+.lab{width:46px;color:#9aa0a6}.bar{height:13px;border-radius:3px}.pl{background:#7aa2f7}.pn{background:#e0af68}
+pre{background:#0b0d10;border:1px solid #262a33;border-radius:8px;padding:12px;font:12px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap;margin:0 0 14px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}.tag{font-size:11px;color:#9aa0a6;margin:0 0 6px}
+</style><h1>Scoring output, as printed</h1><p class=sub>score.py and the hidden tests</p><p class=tag>$ 1-score.py --links</p><pre>plain-complex-1      $0.8141 wall   180.8s turns   9 go 0 hidden 19/19 models [&#x27;claude-haiku-5-5&#x27;, &#x27;claude-opus-5-5&#x27;]
+plain-complex-2      $0.7911 wall   176.9s turns  12 go 0 hidden 19/19 models [&#x27;claude-haiku-5-5&#x27;, &#x27;claude-opus-5-5&#x27;]
+plain-medium-1       $0.3471 wall    52.6s turns   6 go 0 hidden 11/11 models [&#x27;claude-haiku-5-5&#x27;, &#x27;claude-opus-5-5&#x27;]
+plain-medium-2       $0.3622 wall    50.7s turns   5 go 0 hidden 11/11 models [&#x27;claude-haiku-5-5&#x27;, &#x27;claude-opus-5-5&#x27;]
+plain-research-1     $2.1903 wall   320.2s turns  37 go 0 words 2783 urls 30 models [&#x27;claude-haiku-5-5&#x27;, &#x27;claude-opus-5-5&#x27;]
+plain-research-2     $2.2926 wall   289.1s turns  27 go 0 words 2824 urls 36 models [&#x27;claude-haiku-5-5&#x27;, &#x27;claude-opus-5-5&#x27;]
+plain-simple-1       $0.4332 wall    23.8s turns   6 go 0 hidden 10/10 models [&#x27;claude-haiku-5-5&#x27;, &#x27;claude-opus-5-5&#x27;]
+plain-simple-2       $0.2173 wall    18.3s turns   5 go 0 hidden 10/10 models [&#x27;claude-haiku-5-5&#x27;, &#x27;claude-opus-5-5&#x27;]
+plugin-complex-1     $1.0211 wall   301.5s turns  10 go 1 hidden 19/19 models [&#x27;claude-sonnet-5-5&#x27;, &#x27;claude-opus-5-5&#x27;]
+plugin-complex-2     $1.1032 wall   365.9s turns  11 go 1 hidden 19/19 models [&#x27;claude-sonnet-5-5&#x27;, &#x27;claude-opus-5-5&#x27;]
+plugin-medium-1      $0.1727 wall    45.7s turns   4 go 0 hidden 11/11 models [&#x27;claude-sonnet-5-5&#x27;]
+plugin-medium-2      $0.1796 wall    39.1s turns   4 go 0 hidden 11/11 models [&#x27;claude-sonnet-5-5&#x27;]
+plugin-research-1    $0.7851 wall   189.7s turns  33 go 0 words 1565 urls 19 models [&#x27;claude-sonnet-5-5&#x27;, &#x27;claude-haiku-5-5&#x27;]
+plugin-research-2    $0.7274 wall   184.1s turns  28 go 0 words 1415 urls 15 models [&#x27;claude-sonnet-5-5&#x27;, &#x27;claude-haiku-5-5&#x27;]
+plugin-simple-1      $0.2368 wall    35.2s turns   7 go 0 hidden 10/10 models [&#x27;claude-sonnet-5-5&#x27;]
+plugin-simple-2      $0.1366 wall    25.8s turns   7 go 0 hidden 10/10 models [&#x27;claude-sonnet-5-5&#x27;]
+</pre><p class=tag>$ 2-node-test-hidden plain-complex-1</p><pre>✔ hidden: exact and = pick that version
+✔ hidden: caret takes the newest in the major
+✔ hidden: caret with zero major and zero minor
+✔ hidden: tilde, comparators, star, ||
+✔ hidden: versions compare numerically
+✔ hidden: transitive dependencies are included
+✔ hidden: a shared dependency satisfies every range on it
+✔ hidden: backtracks to an older version when the newest conflicts
+✔ hidden: backtracks across a later package
+✔ hidden: earlier packages get the newer version on a trade-off
+✔ hidden: dependencies of rejected versions are left out
+✔ hidden: cycles resolve
+✔ hidden: a version needing a missing package is skipped
+✔ hidden: missing root dependency is ENOTFOUND
+✔ hidden: no solution is ERESOLVE naming a package
+✔ hidden: invalid ranges throw TypeError with the range
+✔ hidden: invalid root range wins over a missing package
+✔ hidden: inputs are not mutated and the result is a fresh object
+✔ hidden: 30 packages × 20 versions resolve quickly
+ℹ tests 19
+ℹ pass 19
+ℹ fail 0
+</pre><p class=tag>$ 2-node-test-hidden plugin-complex-1</p><pre>✔ hidden: exact and = pick that version
+✔ hidden: caret takes the newest in the major
+✔ hidden: caret with zero major and zero minor
+✔ hidden: tilde, comparators, star, ||
+✔ hidden: versions compare numerically
+✔ hidden: transitive dependencies are included
+✔ hidden: a shared dependency satisfies every range on it
+✔ hidden: backtracks to an older version when the newest conflicts
+✔ hidden: backtracks across a later package
+✔ hidden: earlier packages get the newer version on a trade-off
+✔ hidden: dependencies of rejected versions are left out
+✔ hidden: cycles resolve
+✔ hidden: a version needing a missing package is skipped
+✔ hidden: missing root dependency is ENOTFOUND
+✔ hidden: no solution is ERESOLVE naming a package
+✔ hidden: invalid ranges throw TypeError with the range
+✔ hidden: invalid root range wins over a missing package
+✔ hidden: inputs are not mutated and the result is a fresh object
+✔ hidden: 30 packages × 20 versions resolve quickly
+ℹ tests 19
+ℹ pass 19
+ℹ fail 0
+</pre>

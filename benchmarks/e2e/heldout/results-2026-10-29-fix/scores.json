@@ -1,0 +1,123 @@
+[
+  {
+    "arm": "plugin",
+    "task": "complex",
+    "rep": "1",
+    "run": "plugin-complex-1",
+    "exit_code": 0,
+    "timed_out": false,
+    "errors": [],
+    "cost_usd": 0.3016346,
+    "cost_check_sum_models": 0.3016,
+    "wall_s": 130.8,
+    "api_s": 128.8,
+    "cli_s": 129.9,
+    "model_calls_main": 6,
+    "model_calls_sub": 0,
+    "turns": 6,
+    "messages_sent": 1,
+    "go_sent": 0,
+    "models": {
+      "claude-sonnet-5-5": {
+        "cost": 0.3016,
+        "in": 12,
+        "out": 12611,
+        "cache_read": 286566,
+        "cache_write": 36711,
+        "web_search": 0
+      }
+    },
+    "tools": {
+      "Bash": 4,
+      "Write": 1
+    },
+    "agent_calls": [],
+    "route": "ROUTE track=coding tier=planned mode=STANDARD plan=card approval=no executor=R6·opus-medium review=none escalate=reasoning checks=tests+lint seat=sonnet gate=hook",
+    "output_tokens": 12611,
+    "changed": [
+      {
+        "file": "src/resolve.js",
+        "added": 201,
+        "deleted": 2
+      },
+      {
+        "file": "test/resolve.test.js",
+        "added": 145,
+        "deleted": 0
+      }
+    ],
+    "hidden": {
+      "pass": 19,
+      "fail": 0,
+      "tests": 19,
+      "failed": []
+    },
+    "own_tests": {
+      "exit": 0,
+      "tests": 16,
+      "pass": 16,
+      "fail": 0
+    }
+  },
+  {
+    "arm": "plugin",
+    "task": "complex",
+    "rep": "2",
+    "run": "plugin-complex-2",
+    "exit_code": 0,
+    "timed_out": false,
+    "errors": [],
+    "cost_usd": 0.3032823,
+    "cost_check_sum_models": 0.3033,
+    "wall_s": 149.9,
+    "api_s": 147.9,
+    "cli_s": 149.0,
+    "model_calls_main": 8,
+    "model_calls_sub": 0,
+    "turns": 10,
+    "messages_sent": 1,
+    "go_sent": 0,
+    "models": {
+      "claude-sonnet-5-5": {
+        "cost": 0.3033,
+        "in": 16,
+        "out": 11659,
+        "cache_read": 402163,
+        "cache_write": 36611,
+        "web_search": 0
+      }
+    },
+    "tools": {
+      "Bash": 6,
+      "Write": 2,
+      "Edit": 1
+    },
+    "agent_calls": [],
+    "route": "ROUTE track=coding tier=planned mode=STANDARD plan=card approval=no executor=R6·opus-medium review=none escalate=reasoning checks=tests+lint seat=sonnet gate=hook",
+    "output_tokens": 11659,
+    "changed": [
+      {
+        "file": "src/resolve.js",
+        "added": 187,
+        "deleted": 2
+      },
+      {
+        "file": "test/resolve.test.js",
+        "added": 159,
+        "deleted": 0
+      }
+    ],
+    "hidden": {
+      "pass": 19,
+      "fail": 0,
+      "tests": 19,
+      "failed": []
+    },
+    "own_tests": {
+      "exit": 0,
+      "tests": 16,
+      "pass": 16,
+      "fail": 0
+    }
+  }
+]

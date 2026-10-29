@@ -1,0 +1,7 @@
+{"event": "route", "entry": "do", "debug": false, "route": "ROUTE track=coding tier=planned mode=STANDARD plan=card approval=yes executor=inline review=reviewer·sonnet·low escalate=none checks=tests+lint seat=sonnet gate=hook", "why": "not tiny (behaviour changes); logic without a check that catches a miss; small enough for the Sonnet seat", "facts": "critical=none(stated: no trigger word) behaviour=yes(stated: 'returns') uncertain=no(assumed) files=2(assumed) shape=feature(assumed) lines=30(assumed) checks=no(assumed)", "confidence": "high", "base": "ok", "ts": "2026-10-28T17:55:06Z", "v": "1.0.0-exp"}
+{"event": "approve", "found": true, "ts": "2026-10-28T17:55:29Z", "v": "1.0.0-exp"}
+{"event":"gate","ts":"2026-10-28T17:55:39Z","tool":"Edit","decision":"allow","class":"ok","bench":"1"}
+{"event":"gate","ts":"2026-10-28T17:55:40Z","tool":"Edit","decision":"allow","class":"ok","bench":"1"}
+{"event":"gate","ts":"2026-10-28T17:55:48Z","tool":"Write","decision":"allow","class":"ok","bench":"1"}
+{"event":"agent","ts":"2026-10-28T17:55:59Z","subagent_type":"sharaqi:reviewer","model":"sonnet","effort":"low","escalate":"","background":"false","from_subagent":"","decision":"allow","reason":""}
+{"event":"gate","ts":"2026-10-28T17:55:59Z","tool":"Agent","decision":"allow","class":"ok","bench":"1"}

@@ -1,0 +1,61 @@
+{
+  "arm": "plugin",
+  "task": "research",
+  "rep": "1",
+  "suite": "heldout",
+  "session_id": "f73b5562-7fc7-43b9-9383-116fbfbb4dcb",
+  "exit_code": 0,
+  "timed_out": false,
+  "wall_s": 189.7,
+  "messages_sent": [
+    {
+      "t": 0.0,
+      "text": "/sharaqi:sharaqi do اعمل تقرير مقارنة عن قواعد بيانات المتجهات (vector databases) المتاحة سنة 2026، وعلى الأقل: pgvector وQdrant وMilvus وWeaviate وPinecone وChroma. لكل واحدة: الترخيص، طريقة التشغيل (self-hosted أو مُدارة)، أسعار النسخة المُدارة لو موجودة، نتايج الأداء المنشورة في بنشماركات معروفة، والحدود أو العيوب المعروفة. بعد كده فكّر واختار الأنسب لفريق من ٥ مطوّرين عنده حوالي ١٠ مليون متجه لنصوص عربي وإنجليزي، وميزانية تشغيل أقل من ٥٠٠ دولار في الشهر، وبيستخدم PostgreSQL أصلًا، واشرح سبب الاختيار والبديل التاني ومتى نغيّر. اذكر المصادر بروابطها. احفظ التقرير في ملف report.md في الريبو ده."
+    }
+  ],
+  "results": [
+    {
+      "subtype": "success",
+      "is_error": false,
+      "total_cost_usd": 0.7851033000000002,
+      "duration_ms": 189021,
+      "duration_api_ms": 341337,
+      "num_turns": 33,
+      "modelUsage": {
+        "claude-sonnet-5-5": {
+          "inputTokens": 99687,
+          "outputTokens": 19812,
+          "cacheReadInputTokens": 591070,
+          "cacheCreationInputTokens": 54725,
+          "webSearchRequests": 7,
+          "costUSD": 0.7455010000000002,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 1445,
+          "cacheCreationEphemeral5mInputTokens": 0,
+          "cacheCreationEphemeral1hInputTokens": 54725,
+          "canonicalModel": "claude-sonnet-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-haiku-5-5": {
+          "inputTokens": 275943,
+          "outputTokens": 24016,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.03960229999999999,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 14611,
+          "cacheCreationEphemeral5mInputTokens": 0,
+          "cacheCreationEphemeral1hInputTokens": 0,
+          "canonicalModel": "claude-haiku-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      }
+    }
+  ],
+  "final_text": "كتبت التقرير في `report.md` داخل الريبو، ولم أعمل commit.\n\n**التوصية:** pgvector على PostgreSQL اللي عندكم، باستخدام `halfvec` وفهرس HNSW مع `hnsw.iterative_scan`. البديل الثاني Qdrant يتشغّل self-hosted. أسباب الاختيار ومتى تنتقلون من pgvector إلى Qdrant موجودة في التقرير.\n\n**ملخص البحث:**\n- **البحث:** شغّلت 7 عمليات بحث، وعدد المصادر المعتمدة 18.\n- **الروابط:** فتحت كل رابط مذكور في التقرير قبل أن أذكره.\n- **الأسعار:** أخذتها من صفحات المزوّدين نفسها، وليس من مواقع المقارنة.\n\n**ما لم أجده أو يحتاج تحقق:**\n- **pgvector وWeaviate عند 10M:** لا أرقام لهما في لوحة Zilliz اللي قرأتها. الأرقام المتاحة في اللوحة وفي بنشمارك Qdrant وpgvectorscale كلها من الشركات المصنِّعة وليست مستقلة. أرقام pgvector عند 10M في مقال DEV تقديرية بتصريح المقال نفسه. شغّلوا VectorDBBench على بياناتكم قبل الحسم.\n- **سعر Qdrant Cloud:** صفحة Qdrant الرسمية لا تنشر أي رقم بالدولار، ولا سعر Hybrid Cloud.\n- **الميزانية:** مثيل `db.r6g.2xlarge` (64GB) سعره $0.899 للساعة، أي حوالي $656 في الشهر، وهذا أعلى من ميزانيتكم لو أردتموه خادم RDS مخصصًا. السعر من موقع Vantage وليس من AWS، ولم أتحقق هل هو Single-AZ. أرقام RDS الرسمية لم أستطع قراءتها، فراجعوا حاسبة AWS.\n- **حجم الذاكرة:** حسبته بنفسي لنموذج تضمين 1024 بُعدًا: حوالي 41GB كـ `vector` وحوالي 20GB كـ `halfvec`. اختيار bge-m3 أو multilingual-e5-large مبني على دراسة RAG عربية، لكن ملخصها لا يعطي أرقامًا تفصيلية.\n\nحفظت التقرير في الريبو لأنكم طلبتم ذلك صراحة. قواعد التيم تقول إن التقارير مكانها `<ISIT_FINDINGS>` خارج ريبو العميل، فانقلوه هناك لو الريبو ده ريبو عميل."
+}

@@ -1,0 +1,22 @@
+✔ hidden: exact and = pick that version
+✔ hidden: caret takes the newest in the major
+✔ hidden: caret with zero major and zero minor
+✔ hidden: tilde, comparators, star, ||
+✔ hidden: versions compare numerically
+✔ hidden: transitive dependencies are included
+✔ hidden: a shared dependency satisfies every range on it
+✔ hidden: backtracks to an older version when the newest conflicts
+✔ hidden: backtracks across a later package
+✔ hidden: earlier packages get the newer version on a trade-off
+✔ hidden: dependencies of rejected versions are left out
+✔ hidden: cycles resolve
+✔ hidden: a version needing a missing package is skipped
+✔ hidden: missing root dependency is ENOTFOUND
+✔ hidden: no solution is ERESOLVE naming a package
+✔ hidden: invalid ranges throw TypeError with the range
+✔ hidden: invalid root range wins over a missing package
+✔ hidden: inputs are not mutated and the result is a fresh object
+✔ hidden: 30 packages × 20 versions resolve quickly
+ℹ tests 19
+ℹ pass 19
+ℹ fail 0

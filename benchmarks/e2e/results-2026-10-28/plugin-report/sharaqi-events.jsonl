@@ -1,0 +1,2 @@
+{"event": "route", "entry": "do", "debug": false, "route": "ROUTE track=noncoding tier=direct mode=- plan=none approval=no executor=inline review=none escalate=none checks=none seat=sonnet gate=hook", "why": "inline: under break-even or needs judgement; review only on /sharaqi review", "facts": "turns=1(assumed)", "confidence": "high", "ts": "2026-10-28T17:50:31Z", "v": "1.0.0-exp"}
+{"event":"gate","ts":"2026-10-28T17:51:59Z","tool":"Write","decision":"allow","class":"ok","bench":"1"}

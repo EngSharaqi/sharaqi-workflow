@@ -1,0 +1,13 @@
+In this repo (Node 20+, no packages) add orders to the shop API:
+
+`POST /orders` with a JSON body `{ "items": [{ "sku": "PEN-BLK", "qty": 2 }, ...] }`.
+- 400 `{ "error": "..." }` when the body isn't valid JSON, `items` is missing, not an array or empty, or any line has a `sku` that isn't a non-empty string or a `qty` that isn't a positive integer.
+- 404 `{ "error": "unknown sku", "sku": "<sku>" }` for the first line whose sku isn't in the catalogue.
+- 409 `{ "error": "insufficient stock", "sku": "<sku>", "available": <n> }` for the first sku without enough stock. Lines with the same sku count together.
+- Checks run in that order: every 400 check first, then 404, then 409.
+- The order is all-or-nothing: if any check fails, no stock changes.
+- On success: 201 with `{ "id": "<string>", "items": [{ "sku", "qty", "price" }], "total": <cents> }`, where lines with the same sku are merged (first-seen order), `price` is the unit price in cents and `total` is the sum of price × qty. Stock is decremented, and `GET /products/:sku` shows the new stock.
+
+`GET /orders/:id` returns 200 with the same order, or 404 `{ "error": "not found" }`.
+
+Keep the existing endpoints working, add tests for the new behaviour, and make sure `npm test` passes.

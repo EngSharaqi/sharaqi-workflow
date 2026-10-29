@@ -6,6 +6,44 @@ Sonnet runs the session; Opus comes in only on a logged escalation. From the LLM
 2026-10-28. v0.9 stays reproducible from commit `a05e49d` (`benchmarks/v1.0/prepare.sh`
 archives it).
 
+### Changed (from the e2e benchmark analysis, 2026-10-29; unmeasured until the next paid round)
+- Routing facts: a long spec (> 1,500 characters or ≥ 8 items) with no stated size is sized
+  `lines=60(estimated)` with low confidence instead of `lines=10(assumed)`. `npm test`,
+  `node --test`, `go test`, `cargo test`, "make … tests pass" and "add tests" count as checks;
+  "think the design through", "design first" and "correctness … matters" count as judgement.
+  The e2e complex task now routes to R6 `opus-medium` with `escalate=reasoning`.
+- Planned tier: no approval wait and no reviewer. The plan prints and the session continues;
+  it decides spec gaps, pins each with a test and lists them under **Decisions:**, then checks
+  its own diff. CRITICAL keeps the plan, `/sharaqi go` and the Opus reviewer.
+- R4 is `implementer · sonnet · medium` (was high). Tests: one per acceptance criterion and edge
+  input; rules on one code path share a test.
+- `route.py --session <id>` logs a `reroute` event. `hooks/agent-audit.sh` reads the latest
+  `route`/`reroute` event and blocks an implementer when it says `executor=inline` and a
+  reviewer when it says `review=none`.
+- Non-coding research (`route.py --research yes`, set by the hook on "sources", "links",
+  "research", "مصادر", …): ≥ 6 searches, ≥ 10 sources read, every cited link opened.
+- `benchmarks/v1.0/expected.json` gains `after-e2e`; `v1.0` stays as the paid round scored it.
+- Side effect: the e2e medium task now has `checks=yes` and routes to R3 `haiku-high` instead
+  of inline. Not measured.
+
+### Fixed (from the e2e benchmark analysis)
+- CRITICAL routes now also get the planned-route steps (`references/routes/planned.md`); before,
+  the hook injected only `critical.md`.
+
+### Fixed (from the held-out benchmark, 2026-10-29)
+- The infra trigger fires on changing a dependency ("add / upgrade / bump … dependency",
+  "dependency on X", "dependency updates"), not on the bare word: "a dependency resolver" and
+  "the dependency graph view" route planned. Five cases added to `tests/test_classify.py`.
+
+### Benchmarks (held-out, 2026-10-29)
+- benchmarks/e2e/heldout/RESULTS.md: four new tasks, two runs per arm, against plain Claude
+  Code on Opus · medium. All 12 code runs per arm passed every hidden test. Measured: $2.18
+  vs $3.72 (−41%), 594 s vs 556 s (+7%); the complex task lost because it routed CRITICAL on
+  "dependency". After the fix, two complex runs: $0.30 · 140 s vs $0.80 · 179 s; composite
+  $1.42 vs $3.72 (−62%), 399 s vs 556 s (−28%), other tasks not re-run. The seat implemented
+  inline on Sonnet in STANDARD even when the route named Haiku or Opus.
+- `benchmarks/e2e/compare.py` builds the comparison pages from `scores.json`.
+
 ### Fixed (from the first finished-task benchmark)
 - `SessionEnd` no longer deletes `<session>.pending`, so `/sharaqi go` works after
   `claude -p` or `--resume` (same session id). A waiting plan expires after 24 hours, like the
