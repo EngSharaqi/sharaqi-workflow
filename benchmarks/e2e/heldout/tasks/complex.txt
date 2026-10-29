@@ -1,0 +1,24 @@
+Implement a package dependency resolver in `src/resolve.js` (Node 20+, no packages): export `resolve(registry, root)`. Think the design through before coding: correctness on the rules below matters more than speed of delivery.
+
+Inputs:
+- `registry`: `{ [name]: { [version]: { [depName]: range } } }`, every published version of every package and the ranges that version depends on. Versions are `MAJOR.MINOR.PATCH` (non-negative integers, no pre-release tags).
+- `root`: `{ [name]: range }`, the project's direct dependencies.
+
+Ranges:
+- `1.2.3` or `=1.2.3`: exactly that version. `>1.2.3`, `>=1.2.3`, `<1.2.3`, `<=1.2.3` compare.
+- `^1.2.3` means `>=1.2.3 <2.0.0`; with a zero major, `^0.2.3` means `>=0.2.3 <0.3.0` and `^0.0.3` means `>=0.0.3 <0.0.4`.
+- `~1.2.3` means `>=1.2.3 <1.3.0`. `*` matches any version.
+- Comparators separated by spaces must all hold: `>=1.2.0 <1.5.0`. `||` separates alternatives, any of which may match: `^1.0.0 || ^3.0.0`. Surrounding whitespace is ignored.
+- Anything else (`1.2`, `^x`, `>=`, `""`, `^1.0.0 ||`) is invalid: throw a `TypeError` whose message contains the range. Root ranges are checked before anything else; a dependency range is checked when the resolver first considers that version.
+
+Versions compare numerically (`1.10.0` is newer than `1.9.0`).
+
+Result: a new plain object `{ [name]: version }` with one version for every package that is needed: the root's dependencies and, transitively, the dependencies of every selected version. A package needed only by a version that was not selected must not appear. Every range on a package, from the root and from every selected version, must hold for its selected version. Cycles (a needs b, b needs a) are fine.
+
+Preference: packages are resolved in the order they are first needed (root entries in order, then each selected version's dependencies in order, breadth-first). Each takes the newest version that satisfies the ranges known so far; if that choice leads to a conflict later, back up and try the next older version. Return the first complete solution found this way.
+
+Errors:
+- A root dependency missing from the registry: throw an `Error` with `code = 'ENOTFOUND'` and `package = <name>`. A version that depends on a package missing from the registry can't be selected; try another version.
+- No solution: throw an `Error` with `code = 'ERESOLVE'` and a message that names a package involved.
+
+Don't mutate the inputs. Add tests for the rules above and make sure `npm test` passes.

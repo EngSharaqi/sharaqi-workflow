@@ -112,7 +112,7 @@ run the driver approved at once; with a person approving, their reaction time is
 |---|---:|---:|
 | Cost | $0.910 | **$0.835** |
 | Wall · API time | 551 s · 547 s | **199 s · 200 s** |
-| Route | `planned · STANDARD`; executor moved from inline to R4 `implementer · sonnet · high`; review `reviewer · sonnet · low` | — |
+| Route | `planned · STANDARD`, hook route `executor=inline` (the classifier sized the spec as `lines=10(assumed)` and missed `checks` and `judgement`); the seat then delegated `implementer · sonnet · high` without re-running `route.py`, and `agent-audit.sh` allowed and logged the call (`event: agent`); review `reviewer · sonnet · low` | — |
 | Messages sent | 2 (`do`, then `go` at 31 s) | 1 |
 | Models (cost) | Sonnet $0.910 | Opus $0.835 · Haiku $0.0002 |
 | Turns · main calls · subagent calls | 9 · 9 · 6 | 7 · 6 · 0 |

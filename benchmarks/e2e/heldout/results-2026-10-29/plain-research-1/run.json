@@ -1,0 +1,61 @@
+{
+  "arm": "plain",
+  "task": "research",
+  "rep": "1",
+  "suite": "heldout",
+  "session_id": "43e9fb19-924e-440a-928a-ba33129ba37d",
+  "exit_code": 0,
+  "timed_out": false,
+  "wall_s": 320.2,
+  "messages_sent": [
+    {
+      "t": 0.0,
+      "text": "اعمل تقرير مقارنة عن قواعد بيانات المتجهات (vector databases) المتاحة سنة 2026، وعلى الأقل: pgvector وQdrant وMilvus وWeaviate وPinecone وChroma. لكل واحدة: الترخيص، طريقة التشغيل (self-hosted أو مُدارة)، أسعار النسخة المُدارة لو موجودة، نتايج الأداء المنشورة في بنشماركات معروفة، والحدود أو العيوب المعروفة. بعد كده فكّر واختار الأنسب لفريق من ٥ مطوّرين عنده حوالي ١٠ مليون متجه لنصوص عربي وإنجليزي، وميزانية تشغيل أقل من ٥٠٠ دولار في الشهر، وبيستخدم PostgreSQL أصلًا، واشرح سبب الاختيار والبديل التاني ومتى نغيّر. اذكر المصادر بروابطها. احفظ التقرير في ملف report.md في الريبو ده."
+    }
+  ],
+  "results": [
+    {
+      "subtype": "success",
+      "is_error": false,
+      "total_cost_usd": 2.1902508,
+      "duration_ms": 319522,
+      "duration_api_ms": 473793,
+      "num_turns": 37,
+      "modelUsage": {
+        "claude-haiku-5-5": {
+          "inputTokens": 156091,
+          "outputTokens": 16421,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.023819600000000003,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 10070,
+          "cacheCreationEphemeral5mInputTokens": 0,
+          "cacheCreationEphemeral1hInputTokens": 0,
+          "canonicalModel": "claude-haiku-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-opus-5-5": {
+          "inputTokens": 151478,
+          "outputTokens": 36681,
+          "cacheReadInputTokens": 861776,
+          "cacheCreationInputTokens": 68068,
+          "webSearchRequests": 11,
+          "costUSD": 2.1664312,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 5243,
+          "cacheCreationEphemeral5mInputTokens": 0,
+          "cacheCreationEphemeral1hInputTokens": 68068,
+          "canonicalModel": "claude-opus-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      }
+    }
+  ],
+  "final_text": "التقرير جاهز في `report.md` في الريبو، ولسه ما عملتش commit.\n\n**النتيجة:** الأنسب للفريق ده **pgvector** جوّه الـ PostgreSQL اللي عندكم.\n\n- **الحجم بيستحمل:** ١٠ مليون متجه بـ ١٠٢٤ بُعد، لو اتخزّنت بنص الدقة (`halfvec`) هتبقى حوالي ٢٠ جيجا. ده يدخل في ذاكرة سيرفر واحد.\n- **التكلفة تحت الحد:** يا إما صفر زيادة لو السيرفر الحالي فيه ذاكرة فاضية، يا إما حوالي ٢٥٥ لـ ٣٤٩ دولار في الشهر لسيرفر RDS مخصّص.\n- **مفيش سيستم جديد:** الفريق مش هيحتاج يشغّل ويراقب ويعمل backup لقاعدة تانية، ولا يزامن البيانات بين اتنين.\n\n**البديل التاني Qdrant:** ترخيصه Apache-2.0، وكان فيه أقل زمن استجابة في الحالات البطيئة وأسرع بناء للفهرس في بنشمارك نشرته شركة منافسة. التقرير بيحدّد إمتى نغيّر ليه: لما الفهرس ما يدخلش في الذاكرة (تقريبًا بعد ٥٠ لـ ١٠٠ مليون متجه)، أو لما الاستعلامات المفلترة تبطّأ زيادة، أو لما الكتابة المستمرة تضغط على الشغل العادي، أو لما نحتاج نوزّع على أكتر من سيرفر.\n\n**حاجات جديدة في ٢٠٢٦ لازم تعرفها:**\n- **Weaviate:** من سبتمبر ٢٠٢٦ بقى فيه ميزات بترخيص تجاري ومحتاجة مفتاح ترخيص.\n- **pgvector 0.8.7:** صلّحت ثغرة أمنية في بناء فهارس IVFFlat (CVE-2026-103484)، فلازم ترقّوا لها على الأقل.\n- **RDS:** إضافة pgvectorscale مش متاحة عليه.\n- **العربي:** أداة تجذير الكلمات العربي الجاهزة في Postgres (`arabic_stem`) ضعيفة، وده يفرق لو هتعملوا بحث هجين (متجهات + نص).\n\n**حدود لازم تاخدها في الاعتبار:**\n- كل البنشماركات المنشورة عاملاها شركات ليها مصلحة في النتيجة، وما لقيتش بنشمارك مستقل حديث يقارن الست قواعد على نفس الأجهزة. التقرير بيقترح تقيسوا بنفسكم على بياناتكم قبل القرار.\n- Qdrant Cloud ما بينشرش أسعاره.\n- ما لقيتش أرقام أداء منشورة لـ Chroma.\n- حسبة تكلفة الاستعلام في Chroma مبنية على افتراض منّي في معنى «TiB queried»، ومتعلّم عليه في التقرير.\n\n**ملاحظة عن مكان الملف:** قواعد الفريق بتقول التقارير تتحفظ في `_Findings` مش جوّه الريبو، بس أنت طلبت الريبو ده بالاسم، والـ README بتاعه بيقول إنه مخصّص للتقارير."
+}

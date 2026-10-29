@@ -1,0 +1,25 @@
+{"arm": "plain", "task": "simple", "rep": "1", "rc": 0, "wall_s": 23.8, "gos": 0, "cost": [0.4332283999999999]}
+{"arm": "plugin", "task": "simple", "rep": "1", "rc": 0, "wall_s": 35.2, "gos": 0, "cost": [0.23682989999999998]}
+done simple 1 11:53:48
+{"arm": "plugin", "task": "medium", "rep": "1", "rc": 0, "wall_s": 45.7, "gos": 0, "cost": [0.1727145]}
+{"arm": "plain", "task": "medium", "rep": "1", "rc": 0, "wall_s": 52.6, "gos": 0, "cost": [0.3470754]}
+done medium 1 11:54:40
+{"arm": "plain", "task": "complex", "rep": "1", "rc": 0, "wall_s": 180.8, "gos": 0, "cost": [0.8140691999999999]}
+{"arm": "plugin", "task": "complex", "rep": "1", "rc": 0, "wall_s": 301.5, "gos": 1, "cost": [0.14791880000000002, 1.0210793]}
+done complex 1 11:59:42
+{"arm": "plugin", "task": "research", "rep": "1", "rc": 0, "wall_s": 189.7, "gos": 0, "cost": [0.7851033000000002]}
+{"arm": "plain", "task": "research", "rep": "1", "rc": 0, "wall_s": 320.2, "gos": 0, "cost": [2.1902508]}
+done research 1 12:05:02
+{"arm": "plain", "task": "simple", "rep": "2", "rc": 0, "wall_s": 18.3, "gos": 0, "cost": [0.21728160000000002]}
+{"arm": "plugin", "task": "simple", "rep": "2", "rc": 0, "wall_s": 25.8, "gos": 0, "cost": [0.13661340000000002]}
+done simple 2 12:05:28
+{"arm": "plugin", "task": "medium", "rep": "2", "rc": 0, "wall_s": 39.1, "gos": 0, "cost": [0.1796161]}
+{"arm": "plain", "task": "medium", "rep": "2", "rc": 0, "wall_s": 50.7, "gos": 0, "cost": [0.3621506]}
+done medium 2 12:06:19
+{"arm": "plain", "task": "complex", "rep": "2", "rc": 0, "wall_s": 176.9, "gos": 0, "cost": [0.7910656]}
+{"arm": "plugin", "task": "complex", "rep": "2", "rc": 0, "wall_s": 365.9, "gos": 1, "cost": [0.1330861, 1.1032193000000003]}
+done complex 2 12:12:25
+{"arm": "plugin", "task": "research", "rep": "2", "rc": 0, "wall_s": 184.1, "gos": 0, "cost": [0.7273573000000001]}
+{"arm": "plain", "task": "research", "rep": "2", "rc": 0, "wall_s": 289.1, "gos": 0, "cost": [2.2925762]}
+done research 2 12:17:14
+ALL-DONE

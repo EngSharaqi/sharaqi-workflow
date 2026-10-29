@@ -1,0 +1,51 @@
+<!doctype html><meta charset=utf-8><title>Final reply, Research: vector DB report</title><style>
+body{margin:0;background:#0f1115;color:#e6e6e6;font:14px/1.45 -apple-system,Segoe UI,Roboto,sans-serif;padding:28px}
+h1{font-size:20px;margin:0 0 4px}h2{font-size:15px;margin:22px 0 8px}.sub{color:#9aa0a6;margin:0 0 20px;font-size:12.5px}
+table{border-collapse:collapse;width:100%;margin-bottom:18px}
+th,td{padding:6px 9px;border-bottom:1px solid #262a33;text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}th{color:#9aa0a6;font-weight:600;font-size:12px}
+.g{color:#5fd38d}.r{color:#ff7b72}.m{color:#9aa0a6}.w{white-space:normal;text-align:left}
+.bars{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.card{background:#161a22;border:1px solid #262a33;border-radius:10px;padding:12px}
+.card h3{margin:0 0 8px;font-size:12.5px}.row{display:flex;align-items:center;gap:8px;margin:4px 0;font-size:12px}
+.lab{width:46px;color:#9aa0a6}.bar{height:13px;border-radius:3px}.pl{background:#7aa2f7}.pn{background:#e0af68}
+pre{background:#0b0d10;border:1px solid #262a33;border-radius:8px;padding:12px;font:12px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap;margin:0 0 14px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}.tag{font-size:11px;color:#9aa0a6;margin:0 0 6px}
+</style><h1>Final reply, Research: vector DB report</h1><p class=sub>the last result event of run 1 of each arm, verbatim</p><div class=cols><div><p class=tag>plugin · run 1 · messages sent: /sharaqi:sharaqi do اع…</p><pre dir=auto>كتبت التقرير في `report.md` داخل الريبو، ولم أعمل commit.
+
+**التوصية:** pgvector على PostgreSQL اللي عندكم، باستخدام `halfvec` وفهرس HNSW مع `hnsw.iterative_scan`. البديل الثاني Qdrant يتشغّل self-hosted. أسباب الاختيار ومتى تنتقلون من pgvector إلى Qdrant موجودة في التقرير.
+
+**ملخص البحث:**
+- **البحث:** شغّلت 7 عمليات بحث، وعدد المصادر المعتمدة 18.
+- **الروابط:** فتحت كل رابط مذكور في التقرير قبل أن أذكره.
+- **الأسعار:** أخذتها من صفحات المزوّدين نفسها، وليس من مواقع المقارنة.
+
+**ما لم أجده أو يحتاج تحقق:**
+- **pgvector وWeaviate عند 10M:** لا أرقام لهما في لوحة Zilliz اللي قرأتها. الأرقام المتاحة في اللوحة وفي بنشمارك Qdrant وpgvectorscale كلها من الشركات المصنِّعة وليست مستقلة. أرقام pgvector عند 10M في مقال DEV تقديرية بتصريح المقال نفسه. شغّلوا VectorDBBench على بياناتكم قبل الحسم.
+- **سعر Qdrant Cloud:** صفحة Qdrant الرسمية لا تنشر أي رقم بالدولار، ولا سعر Hybrid Cloud.
+- **الميزانية:** مثيل `db.r6g.2xlarge` (64GB) سعره $0.899 للساعة، أي حوالي $656 في الشهر، وهذا أعلى من ميزانيتكم لو أردتموه خادم RDS مخصصًا. السعر من موقع Vantage وليس من AWS، ولم أتحقق هل هو Single-AZ. أرقام RDS الرسمية لم أستطع قراءتها، فراجعوا حاسبة AWS.
+- **حجم الذاكرة:** حسبته بنفسي لنموذج تضمين 1024 بُعدًا: حوالي 41GB كـ `vector` وحوالي 20GB كـ `halfvec`. اختيار bge-m3 أو multilingual-e5-large مبني على دراسة RAG عربية، لكن ملخصها لا يعطي أرقامًا تفصيلية.
+
+حفظت التقرير في الريبو لأنكم طلبتم ذلك صراحة. قواعد التيم تقول إن التقارير مكانها `&lt;ISIT_FINDINGS&gt;` خارج ريبو العميل، فانقلوه هناك لو الريبو ده ريبو عميل.</pre></div><div><p class=tag>plain · run 1 · messages sent: اعمل تقرير مقارنة عن ق…</p><pre dir=auto>التقرير جاهز في `report.md` في الريبو، ولسه ما عملتش commit.
+
+**النتيجة:** الأنسب للفريق ده **pgvector** جوّه الـ PostgreSQL اللي عندكم.
+
+- **الحجم بيستحمل:** ١٠ مليون متجه بـ ١٠٢٤ بُعد، لو اتخزّنت بنص الدقة (`halfvec`) هتبقى حوالي ٢٠ جيجا. ده يدخل في ذاكرة سيرفر واحد.
+- **التكلفة تحت الحد:** يا إما صفر زيادة لو السيرفر الحالي فيه ذاكرة فاضية، يا إما حوالي ٢٥٥ لـ ٣٤٩ دولار في الشهر لسيرفر RDS مخصّص.
+- **مفيش سيستم جديد:** الفريق مش هيحتاج يشغّل ويراقب ويعمل backup لقاعدة تانية، ولا يزامن البيانات بين اتنين.
+
+**البديل التاني Qdrant:** ترخيصه Apache-2.0، وكان فيه أقل زمن استجابة في الحالات البطيئة وأسرع بناء للفهرس في بنشمارك نشرته شركة منافسة. التقرير بيحدّد إمتى نغيّر ليه: لما الفهرس ما يدخلش في الذاكرة (تقريبًا بعد ٥٠ لـ ١٠٠ مليون متجه)، أو لما الاستعلامات المفلترة تبطّأ زيادة، أو لما الكتابة المستمرة تضغط على الشغل العادي، أو لما نحتاج نوزّع على أكتر من سيرفر.
+
+**حاجات جديدة في ٢٠٢٦ لازم تعرفها:**
+- **Weaviate:** من سبتمبر ٢٠٢٦ بقى فيه ميزات بترخيص تجاري ومحتاجة مفتاح ترخيص.
+- **pgvector 0.8.7:** صلّحت ثغرة أمنية في بناء فهارس IVFFlat (CVE-2026-103484)، فلازم ترقّوا لها على الأقل.
+- **RDS:** إضافة pgvectorscale مش متاحة عليه.
+- **العربي:** أداة تجذير الكلمات العربي الجاهزة في Postgres (`arabic_stem`) ضعيفة، وده يفرق لو هتعملوا بحث هجين (متجهات + نص).
+
+**حدود لازم تاخدها في الاعتبار:**
+- كل البنشماركات المنشورة عاملاها شركات ليها مصلحة في النتيجة، وما لقيتش بنشمارك مستقل حديث يقارن الست قواعد على نفس الأجهزة. التقرير بيقترح تقيسوا بنفسكم على بياناتكم قبل القرار.
+- Qdrant Cloud ما بينشرش أسعاره.
+- ما لقيتش أرقام أداء منشورة لـ Chroma.
+- حسبة تكلفة الاستعلام في Chroma مبنية على افتراض منّي في معنى «TiB queried»، ومتعلّم عليه في التقرير.
+
+**ملاحظة عن مكان الملف:** قواعد الفريق بتقول التقارير تتحفظ في `_Findings` مش جوّه الريبو، بس أنت طلبت الريبو ده بالاسم، والـ README بتاعه بيقول إنه مخصّص للتقارير.</pre></div></div>

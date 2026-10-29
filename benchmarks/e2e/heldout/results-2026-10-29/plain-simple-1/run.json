@@ -1,0 +1,61 @@
+{
+  "arm": "plain",
+  "task": "simple",
+  "rep": "1",
+  "suite": "heldout",
+  "session_id": "e8acc1d3-a26c-4046-a217-f2426e1a6086",
+  "exit_code": 0,
+  "timed_out": false,
+  "wall_s": 23.8,
+  "messages_sent": [
+    {
+      "t": 0.0,
+      "text": "Our job logs sometimes say a job took \"1m 60s\": `formatDuration(119999)` in `src/duration.js` returns `1m 60s` instead of `2m 0s`. Fix it so the seconds never show 60 (round to the nearest second first, then split into hours, minutes and seconds), add a regression test, and make sure `npm test` passes."
+    }
+  ],
+  "results": [
+    {
+      "subtype": "success",
+      "is_error": false,
+      "total_cost_usd": 0.4332283999999999,
+      "duration_ms": 20023,
+      "duration_api_ms": 20850,
+      "num_turns": 6,
+      "modelUsage": {
+        "claude-haiku-5-5": {
+          "inputTokens": 1280,
+          "outputTokens": 24,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.00014000000000000001,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 0,
+          "cacheCreationEphemeral5mInputTokens": 0,
+          "cacheCreationEphemeral1hInputTokens": 0,
+          "canonicalModel": "claude-haiku-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-opus-5-5": {
+          "inputTokens": 8,
+          "outputTokens": 1599,
+          "cacheReadInputTokens": 130102,
+          "cacheCreationInputTokens": 46882,
+          "webSearchRequests": 0,
+          "costUSD": 0.43308839999999993,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 66,
+          "cacheCreationEphemeral5mInputTokens": 0,
+          "cacheCreationEphemeral1hInputTokens": 46882,
+          "canonicalModel": "claude-opus-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      }
+    }
+  ],
+  "final_text": "I fixed it, and `formatDuration(119999)` now returns `2m 0s`. `npm test` passes (3 tests, 0 failures).\n\n**The cause:** in `src/duration.js`, hours and minutes were cut off with `Math.floor` before rounding, and only the leftover seconds were rounded at the end. When the leftover was 59.5 seconds or more, it rounded up to 60 with nowhere to carry. This also happened at the hour mark: `3599999` came out as `59m 60s`.\n\n**The fix:** the function now rounds the whole duration to the nearest second first. It then splits that number into hours, minutes and seconds, so seconds can only be 0 to 59 and any carry moves up into minutes and hours. I added a one-line comment explaining why the rounding comes first.\n\n**Regression test:** a new test in `test/duration.test.js` checks:\n- `119999` → `2m 0s` (the case you reported)\n- `59500` → `1m 0s`\n- `3599999` → `1h 0m 0s`\n- `1499` → `1s`, so values below the halfway point still round down\n\nThe changes are only in your working tree. I haven't committed or pushed anything."
+}

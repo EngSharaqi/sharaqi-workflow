@@ -1,0 +1,2 @@
+plugin-complex-1     $0.3016 wall   130.8s turns   6 go 0 hidden 19/19 models ['claude-sonnet-5-5']
+plugin-complex-2     $0.3033 wall   149.9s turns  10 go 0 hidden 19/19 models ['claude-sonnet-5-5']

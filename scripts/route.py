@@ -21,16 +21,23 @@ usage: route.py --track coding|noncoding|mixed|review|ops [facts]
   --checks yes|no      tests or a typecheck would catch a miss           (default no)
   --shape trivial|mechanical|feature|tricky|judgement                    (default feature)
   --turns N            non-coding and ops: estimated work turns          (default 1)
+  --research yes|no    non-coding: needs web sources (research tier)     (default no)
   --artifact code|doc  review: what is reviewed                          (required)
   --op install|test|deperr|git-read|commit|push|ado-read|ado-write|web|research|conflict
                        ops: the operation                                (required)
   --failed N           failed repair attempts with new evidence (default 0); code: 2 escalates
                        the executor to Opus (escalate=failed-twice); ops: 1 one rung, 2 ask
   --floor FAST|STANDARD|CRITICAL  the mode so far: a re-route never lowers it
+  --session ID         log this route as a `reroute` event in the session's events log, so
+                       hooks/agent-audit.sh applies it to the next Agent call
 Prints `ROUTE key=value ...` and `WHY ...`; exit 2 on bad or contradictory facts.
 """
 import argparse
+import json
+import os
+import re
 import sys
+import time
 
 MODES = ("FAST", "STANDARD", "CRITICAL")
 SECURITY = ("auth", "secrets", "parsing")
@@ -60,7 +67,9 @@ OPS_FIX = ("test", "deperr", "conflict")  # a fix that edits files is a code tas
 REVIEW = {"R7": "reviewer·sonnet·low", "R7+": "reviewer·opus·medium",
           "R7+sec": "reviewer·opus·high"}
 SEAT = "sonnet"
-WIDE_FILES, WIDE_LINES = 3, 60  # past this, a fresh sonnet-high context pays for its brief
+WIDE_FILES, WIDE_LINES = 3, 60  # past this, a fresh Sonnet context pays for its brief
+# Research tier (non-coding with web sources): the floor the seat must meet before writing.
+RESEARCH = dict(searches=6, sources=10)
 
 
 class Bad(Exception):
@@ -73,8 +82,9 @@ def yes(v):
 
 def rung(f):
     """Executor for a code part that isn't tiny, seen from a Sonnet seat. Tests one rung
-    lower; a sonnet-high subagent only when the work is wide enough to pay for a fresh
-    context, since inline is already Sonnet."""
+    lower; a Sonnet subagent only when the work is wide enough to pay for a fresh context,
+    since inline is already Sonnet. Medium effort: at high, the e2e benchmark's implementer
+    spent 17k of 38k output tokens thinking and lost to plain Opus on cost and time."""
     if f.files <= 1 and f.lines < INLINE_LINES:
         return "inline", "one file, under ~30 lines: below break-even"
     if f.shape == "judgement":
@@ -83,12 +93,12 @@ def rung(f):
         return "R2·haiku-medium", "mechanical, no new logic"
     wide = f.files >= WIDE_FILES or f.lines >= WIDE_LINES
     if f.shape == "tricky":
-        return ("R4·sonnet-high", "tricky logic, wide enough for its own context") if wide \
+        return ("R4·sonnet-medium", "tricky logic, wide enough for its own context") if wide \
             else ("inline", "tricky but small: the Sonnet seat does it")
     if yes(f.checks) and not yes(f.uncertain):
         return "R3·haiku-high", "logic with tests or a typecheck to catch a miss"
     why = "unclear cause" if yes(f.checks) else "logic without a check that catches a miss"
-    return ("R4·sonnet-high", why + ", wide enough for its own context") if wide \
+    return ("R4·sonnet-medium", why + ", wide enough for its own context") if wide \
         else ("inline", why + "; small enough for the Sonnet seat")
 
 
@@ -129,10 +139,14 @@ def coding(f):
             (f"CRITICAL trigger {f.critical}: plan, approval and an Opus review at any size"
              + ("; Opus plans because the design is unclear" if plan != "card" else "")
              + f"; {why}")
-    return dict(tier="planned", mode=MODES[mode], plan="card", approval="yes",
-                executor=executor, review=REVIEW["R7"], escalate=escalate,
+    # No approval wait and no reviewer below CRITICAL: in the e2e benchmark the wait cost a
+    # turn and the Sonnet reviewer found nothing (140 s on the complex task). The seat runs
+    # the checks and checks the diff against the acceptance list itself.
+    return dict(tier="planned", mode=MODES[mode], plan="card", approval="no",
+                executor=executor, review="none", escalate=escalate,
                 checks="narrowest" if mode == 0 else "tests+lint"), \
-        f"not tiny ({'behaviour changes' if yes(f.behaviour) else 'size or shape'}); {why}"
+        (f"not tiny ({'behaviour changes' if yes(f.behaviour) else 'size or shape'}); {why}"
+         "; below CRITICAL: no approval wait, the seat checks the diff")
 
 
 def noncoding(f):
@@ -140,6 +154,12 @@ def noncoding(f):
         raise Bad("a CRITICAL trigger means code or config changes: use --track coding or mixed")
     if f.floor:
         raise Bad("--floor means a code mode was set: re-route with --track coding or mixed")
+    if yes(f.research):  # web tools are the seat's only: never delegated
+        return dict(tier="direct", mode="-", plan="none", approval="no", executor="inline",
+                    review="none", checks="links", escalate="none",
+                    research="searches>=%(searches)d,sources>=%(sources)d" % RESEARCH), \
+            ("research: web sources needed; inline (only the seat has web tools), with a "
+             "floor of searches and sources and every cited link opened")
     delegate = (f.turns > BREAK_EVEN_TURNS and not yes(f.uncertain)
                 and f.shape in ("trivial", "mechanical", "feature"))
     executor = "R8·haiku-low" if delegate else "inline"
@@ -243,10 +263,12 @@ def parse(argv):
     p.add_argument("--checks", default="no", choices=("yes", "no"))
     p.add_argument("--shape", default="feature", choices=SHAPES)
     p.add_argument("--turns", type=int, default=1)
+    p.add_argument("--research", default="no", choices=("yes", "no"))
     p.add_argument("--artifact", choices=("code", "doc"))
     p.add_argument("--floor", choices=MODES)
     p.add_argument("--op", choices=tuple(OPS))
     p.add_argument("--failed", type=int, default=0)
+    p.add_argument("--session")
     f = p.parse_args(argv)
     if f.files < 0 or f.lines < 0 or f.turns < 0 or f.failed < 0:
         p.error("--files, --lines, --turns and --failed can't be negative")
@@ -254,18 +276,44 @@ def parse(argv):
         p.error("--op applies only to --track ops")
     if f.track in ("noncoding", "review") and f.failed:
         p.error("--failed applies to code and ops tracks")
+    if f.research == "yes" and f.track != "noncoding":
+        p.error("--research applies only to --track noncoding")
     return f
 
 
+def log_reroute(sid, argv, line, why):
+    """Append a `reroute` event to <state>/<session>.events.jsonl. Never raises."""
+    if not sid or not re.fullmatch(r"[A-Za-z0-9_-]+", sid):
+        return False
+    root = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude")
+    d = os.path.join(root, "sharaqi-state")
+    try:
+        os.makedirs(d, exist_ok=True)
+        args = [a for i, a in enumerate(argv) if a != "--session"
+                and (i == 0 or argv[i - 1] != "--session")]
+        ev = {"event": "reroute", "route": line, "why": why, "args": " ".join(args),
+              "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+        with open(os.path.join(d, sid + ".events.jsonl"), "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(ev, ensure_ascii=False) + "\n")
+        return True
+    except OSError:
+        return False
+
+
 def main(argv=None):
-    f = parse(sys.argv[1:] if argv is None else argv)
+    argv = sys.argv[1:] if argv is None else argv
+    f = parse(argv)
     try:
         out, why = route(f)
     except Bad as e:
         print(f"route.py: {e}", file=sys.stderr)
         return 2
-    print(route_line(f.track, out))
+    line = route_line(f.track, out)
+    print(line)
     print("WHY " + why)
+    if f.session is not None and not log_reroute(f.session, argv, line, why):
+        print("route.py: re-route not logged (bad session id or state dir unwritable)",
+              file=sys.stderr)
     return 0
 
 

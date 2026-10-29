@@ -1,0 +1,47 @@
+<!doctype html><meta charset=utf-8><title>Final reply, Medium: orders API</title><style>
+body{margin:0;background:#0f1115;color:#e6e6e6;font:14px/1.45 -apple-system,Segoe UI,Roboto,sans-serif;padding:28px}
+h1{font-size:20px;margin:0 0 4px}h2{font-size:15px;margin:22px 0 8px}.sub{color:#9aa0a6;margin:0 0 20px;font-size:12.5px}
+table{border-collapse:collapse;width:100%;margin-bottom:18px}
+th,td{padding:6px 9px;border-bottom:1px solid #262a33;text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}th{color:#9aa0a6;font-weight:600;font-size:12px}
+.g{color:#5fd38d}.r{color:#ff7b72}.m{color:#9aa0a6}.w{white-space:normal;text-align:left}
+.bars{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.card{background:#161a22;border:1px solid #262a33;border-radius:10px;padding:12px}
+.card h3{margin:0 0 8px;font-size:12.5px}.row{display:flex;align-items:center;gap:8px;margin:4px 0;font-size:12px}
+.lab{width:46px;color:#9aa0a6}.bar{height:13px;border-radius:3px}.pl{background:#7aa2f7}.pn{background:#e0af68}
+pre{background:#0b0d10;border:1px solid #262a33;border-radius:8px;padding:12px;font:12px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap;margin:0 0 14px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}.tag{font-size:11px;color:#9aa0a6;margin:0 0 6px}
+</style><h1>Final reply, Medium: orders API</h1><p class=sub>the last result event of run 1 of each arm, verbatim</p><div class=cols><div><p class=tag>plugin · run 1 · messages sent: /sharaqi:sharaqi do In…</p><pre dir=auto>I added `POST /orders` and `GET /orders/:id`, and `npm test` passes (8 tests: the 6 new ones plus the 2 existing product tests). There is no lint script in the repo, so I ran no lint. I checked the diff against each acceptance point myself.
+
+**Changed:**
+- `src/store.js`: added `placeOrder` and `getOrder`, plus an in-memory orders map that `reset()` clears. `placeOrder` merges lines by sku, checks 404 then 409, and only then decrements stock.
+- `src/app.js`: added the `POST /orders` and `GET /orders/:id` routes, with 400 validation and JSON parse errors mapped to 400.
+- `test/orders.test.js` (new): covers the 400 cases, the 400 → 404 → 409 order, duplicate skus counting together, stock unchanged after a failure, merged lines and total on success, ordering exactly the remaining stock, and an unknown order id.
+
+**Checks:** `npm test` → 8 pass, 0 fail.
+
+**Decisions:**
+- A body that is `null`, an array or any other non-object, or an empty body, returns 400. This is pinned by the &quot;400 for malformed bodies&quot; test.
+- A line that isn&#x27;t an object returns 400. This is in the same test.
+- Order ids are UUIDs from `crypto.randomUUID`. The test only checks that the id is a string.
+
+**Route:** planned · review: self · escalations: none
+
+**Risks:** none identified. Orders live in memory and are lost on restart, like the catalogue. Nothing is committed.
+
+**Waiting for you:** commit, if you want it.</pre></div><div><p class=tag>plain · run 1 · messages sent: In this repo (Node 20+…</p><pre dir=auto>I added `POST /orders` and `GET /orders/:id`, and `npm test` passes: all 12 tests, the 2 existing product tests plus 10 new order tests.
+
+**What changed**
+- **`src/store.js`**: the store now keeps orders next to products, and `reset()` clears them too. A new `placeOrder(items)` checks for unknown skus line by line (404), then adds up repeated skus and checks stock in first-seen order (409). It only lowers stock and saves the order once both checks pass, so a failed order leaves stock unchanged. A new `getOrder(id)` looks an order up. Both return copies, so callers can&#x27;t change what&#x27;s stored.
+- **`src/app.js`**: a JSON body that doesn&#x27;t parse gets a 400 instead of falling through to the existing 500 handler. All the 400 checks run before the store is called. An empty body, `null`, an array, or an item that isn&#x27;t an object also gets a 400. `qty` has to be an actual integer, so `&quot;2&quot;` and `1.5` are rejected.
+- **`test/orders.test.js`**: covers:
+  - a successful order, including merged lines, the total, the new stock seen through `GET /products/:sku`, and fetching the order back
+  - order ids being unique
+  - ordering exactly the stock that&#x27;s left
+  - every 400 case
+  - the 400 → 404 → 409 order
+  - the 404 and 409 response bodies
+  - repeated lines counting together against stock
+  - a failed order leaving stock unchanged
+
+Order ids count up as strings (`&quot;1&quot;`, `&quot;2&quot;`, …), and like the catalogue they&#x27;re kept in memory only, so they start over when the server restarts. I haven&#x27;t committed anything.</pre></div></div>

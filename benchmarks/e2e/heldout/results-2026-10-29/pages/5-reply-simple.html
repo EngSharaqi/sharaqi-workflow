@@ -1,0 +1,39 @@
+<!doctype html><meta charset=utf-8><title>Final reply, Simple: duration rounding bug</title><style>
+body{margin:0;background:#0f1115;color:#e6e6e6;font:14px/1.45 -apple-system,Segoe UI,Roboto,sans-serif;padding:28px}
+h1{font-size:20px;margin:0 0 4px}h2{font-size:15px;margin:22px 0 8px}.sub{color:#9aa0a6;margin:0 0 20px;font-size:12.5px}
+table{border-collapse:collapse;width:100%;margin-bottom:18px}
+th,td{padding:6px 9px;border-bottom:1px solid #262a33;text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}th{color:#9aa0a6;font-weight:600;font-size:12px}
+.g{color:#5fd38d}.r{color:#ff7b72}.m{color:#9aa0a6}.w{white-space:normal;text-align:left}
+.bars{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.card{background:#161a22;border:1px solid #262a33;border-radius:10px;padding:12px}
+.card h3{margin:0 0 8px;font-size:12.5px}.row{display:flex;align-items:center;gap:8px;margin:4px 0;font-size:12px}
+.lab{width:46px;color:#9aa0a6}.bar{height:13px;border-radius:3px}.pl{background:#7aa2f7}.pn{background:#e0af68}
+pre{background:#0b0d10;border:1px solid #262a33;border-radius:8px;padding:12px;font:12px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap;margin:0 0 14px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}.tag{font-size:11px;color:#9aa0a6;margin:0 0 6px}
+</style><h1>Final reply, Simple: duration rounding bug</h1><p class=sub>the last result event of run 1 of each arm, verbatim</p><div class=cols><div><p class=tag>plugin · run 1 · messages sent: /sharaqi:sharaqi do Ou…</p><pre dir=auto>`formatDuration(119999)` now returns `2m 0s`, and `npm test` passes (3 of 3).
+
+**Changed:** `src/duration.js` now rounds to the nearest whole second first, then splits that total into hours, minutes and seconds. Before, it rounded only the leftover seconds, which is how 59.999s became 60. `test/duration.test.js` has a new regression test covering these cases:
+- 119999 → `2m 0s`
+- 59999 → `1m 0s`
+- 3599999 → `1h 0m 0s`
+- 1499 → `1s`
+- 1500 → `2s`
+
+**Checks:** `npm test` → 3 pass, 0 fail. I didn&#x27;t run a separate lint, because the project has no lint script.
+**Decisions:** none. Values exactly halfway between two seconds round up, as `Math.round` does. The 1500 → `2s` case pins that.
+**Route:** planned · review: self. I checked the diff against the acceptance criterion and the edge inputs. · escalations: none
+**Risks:** none identified.
+**Waiting for you:** nothing is committed. Say so if you want a commit.</pre></div><div><p class=tag>plain · run 1 · messages sent: Our job logs sometimes…</p><pre dir=auto>I fixed it, and `formatDuration(119999)` now returns `2m 0s`. `npm test` passes (3 tests, 0 failures).
+
+**The cause:** in `src/duration.js`, hours and minutes were cut off with `Math.floor` before rounding, and only the leftover seconds were rounded at the end. When the leftover was 59.5 seconds or more, it rounded up to 60 with nowhere to carry. This also happened at the hour mark: `3599999` came out as `59m 60s`.
+
+**The fix:** the function now rounds the whole duration to the nearest second first. It then splits that number into hours, minutes and seconds, so seconds can only be 0 to 59 and any carry moves up into minutes and hours. I added a one-line comment explaining why the rounding comes first.
+
+**Regression test:** a new test in `test/duration.test.js` checks:
+- `119999` → `2m 0s` (the case you reported)
+- `59500` → `1m 0s`
+- `3599999` → `1h 0m 0s`
+- `1499` → `1s`, so values below the halfway point still round down
+
+The changes are only in your working tree. I haven&#x27;t committed or pushed anything.</pre></div></div>

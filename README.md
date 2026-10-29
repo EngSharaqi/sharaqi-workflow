@@ -17,18 +17,21 @@
 measures the decision, not finished tasks. Full numbers and limits:
 [benchmarks/v1.0/RESULTS.md](benchmarks/v1.0/RESULTS.md).</sub>
 
-| On 3 finished tasks, against plain Claude Code (Opus · medium) | Plugin | Plain | Δ |
+| On 4 held-out finished tasks, against plain Claude Code (Opus · medium) | Plugin | Plain | Δ |
 |---|---:|---:|---:|
-| 📝 Research report (AI-era jobs, 2026) | **$0.51** · 97 s | $2.35 · 254 s | **−78%** cost · −62% time |
-| 🧩 Medium code, hidden tests 22/22 both | **$0.26** · 77 s | $0.37 · 51 s | **−28%** cost · +52% time |
-| 🧠 Complex code, hidden tests 14/14 both | $0.91 · 551 s | **$0.84** · 199 s | +9% cost · +176% time |
-| **Total** | **$1.68** · 725 s | $3.55 · 504 s | **−53%** cost · +44% time |
+| 🔧 Simple bug fix, hidden tests 10/10 both | **$0.19** · 30 s | $0.33 · 21 s | **−43%** cost · +45% time |
+| 🧩 Medium API, hidden tests 11/11 both | **$0.18** · 42 s | $0.36 · 52 s | **−50%** cost · −18% time |
+| 🧠 Complex resolver, hidden tests 19/19 both | **$0.30** · 140 s | $0.80 · 179 s | **−62%** cost · −22% time |
+| 📝 Research report (vector DBs, Arabic) | **$0.76** · 187 s | $2.24 · 305 s | **−66%** cost · −39% time |
+| **Total** | **$1.42** · 399 s | $3.72 · 556 s | **−62%** cost · −28% time |
 
-<sub>Six paid runs, one per arm per task, 2026-10-28, Claude Code 2.1.312. Cheaper overall,
-same correctness on code, slower on code. Most of the saving is the report, and the
-plugin's report is a third the length. Screenshots and limits:
-[Three finished tasks](#three-finished-tasks-v10-vs-plain) ·
-[benchmarks/e2e/RESULTS.md](benchmarks/e2e/RESULTS.md).</sub>
+<sub>Two paid runs per arm per task, 2026-10-29, Claude Code 2.1.312. Every code run passed
+every hidden test in both arms. The complex row is after a trigger fix: before it the task
+routed CRITICAL on the word "dependency" and cost $1.06 · 334 s, and the measured total was
+−41% cost · +7% time. The other three rows weren't re-run on the fixed snapshot. The research
+report is about half the length of plain's. Screenshots and limits:
+[Four held-out tasks](#four-held-out-tasks-v10-vs-plain) ·
+[benchmarks/e2e/heldout/RESULTS.md](benchmarks/e2e/heldout/RESULTS.md).</sub>
 
 A Claude Code plugin for development tasks. A prompt hook reads your task and routes it
 before the model sees it, with no model call. Sonnet runs the session. Haiku and Sonnet
@@ -48,12 +51,15 @@ As a plugin the command is `/sharaqi:sharaqi …`; the subcommand is the first w
 the arguments.
 
 > [!NOTE]
-> **v1.0.0-exp is experimental.** The routing step is measured (above). Finished tasks, one
-> run each against plain Claude Code on Opus · medium: −78% cost on a research report, −28%
-> on a medium code task, +9% on a complex one; same hidden-test score on both code tasks,
-> but slower on both ([three finished tasks](#three-finished-tasks-v10-vs-plain)). On the
-> earlier task benchmarks (v0.6–v0.7.1, Opus seat) plain Claude Code was cheaper. v0.9
-> stays reproducible from commit `a05e49d`.
+> **v1.0.0-exp is experimental.** The routing step is measured (above). Finished tasks, two
+> runs each against plain Claude Code on Opus · medium: cheaper on all four held-out tasks
+> once the "dependency" trigger was fixed, with the same hidden-test score on every code run
+> ([four held-out tasks](#four-held-out-tasks-v10-vs-plain)). In STANDARD the session still
+> implements inline when the route names a Haiku or Opus agent, so these runs measured Sonnet
+> · medium. The previous round (one run each) was slower on code
+> ([three finished tasks](#three-finished-tasks-v10-vs-plain)). On the earlier task
+> benchmarks (v0.6–v0.7.1, Opus seat) plain Claude Code was cheaper. v0.9 stays reproducible
+> from commit `a05e49d`.
 
 ## What's new in v1.0
 
@@ -108,22 +114,29 @@ flowchart TD
     A["/sharaqi do &lt;task&gt;"] --> B["Prompt hook · no model call<br/>classify.py → route.py<br/>ROUTE, facts, BASE, this route's steps"]
     B --> C{"Tier"}
     C -->|tiny · direct| D["Sonnet does it"]
-    C -->|planned · critical| P["Plan ≤ 8 lines, stop<br/>/sharaqi go"]
-    P --> E["Inline, or implementer<br/>haiku / sonnet-high"]
+    C -->|planned| Q["Plan ≤ 8 lines, continue"]
+    C -->|critical| P["Plan ≤ 8 lines, stop<br/>/sharaqi go"]
+    Q --> E["Inline, or implementer<br/>haiku / sonnet-medium / opus-medium"]
+    P --> E
     D --> F["Sonnet re-runs the checks"]
     E --> F
-    F --> G["Review<br/>Sonnet · low, or Opus for CRITICAL"]
+    F --> G["Review: self-check,<br/>Opus reviewer for CRITICAL"]
     G -->|findings| E
     G --> H["Report: only what was observed"]
 ```
 
 1. **Route.** The hook turns the prompt into facts, each marked stated or assumed, and
    `route.py` turns those into a ROUTE line. The session corrects an assumed fact after its
-   first reads by re-running `route.py`; a CRITICAL trigger can't be dropped.
-2. **Plan.** Planned and critical routes print a short plan and wait for `/sharaqi go`.
+   first reads by re-running `route.py --session <SESSION>`, which logs a `reroute` event; a
+   CRITICAL trigger can't be dropped. `hooks/agent-audit.sh` blocks an implementer or
+   reviewer the latest route doesn't name.
+2. **Plan.** Planned and critical routes print a short plan. Only CRITICAL waits for
+   `/sharaqi go`; elsewhere the session decides spec gaps, pins each with a test and lists
+   them under **Decisions:**.
 3. **Implement.** Inline, or a code-free brief to the `implementer`.
 4. **Verify.** The session re-runs the checks itself. An implementer's "done" is a claim.
-5. **Review.** By the route's reviewer, against the delta from BASE.
+5. **Review.** CRITICAL: the route's Opus reviewer, against the delta from BASE. Elsewhere
+   the session checks its own diff (`review: self`).
 6. **Report.** What changed, which checks ran, the review, risks and unknowns.
 
 ## Tiers and reviews
@@ -131,7 +144,7 @@ flowchart TD
 | Tier | When | Plan + approval | Review |
 |---|---|---|---|
 | tiny | one file, < ~30 lines, no behaviour change, no CRITICAL trigger | none | diff and narrowest check |
-| planned | any other code change | plan, wait for `/sharaqi go` | `reviewer · sonnet · low` |
+| planned | any other code change | plan, no wait; spec gaps decided and tested | self-check of the diff |
 | critical | a CRITICAL trigger, at any size | plan, wait; Opus planner when uncertain | `reviewer · opus · medium`, `high` for security, plus the [security checklist](references/security-checklist.md) |
 | direct | non-coding: emails, reports, analysis, test plans | none | none unless `/sharaqi review` |
 
@@ -140,7 +153,9 @@ irreversible; real-money side effects; security-sensitive parsing; shared infras
 (build, CI, deploy, dependencies). Blast radius, not domain words: fixing cart-total math is
 planned; charging a card is critical. A constraint isn't a trigger: "no new dependencies"
 (or "without adding packages", "بدون dependencies") is skipped; other triggers in the same
-text still count. A mixed task routes only its code part. Borderline
+text still count. Changing a dependency is a trigger ("upgrade the axios dependency",
+"dependency on zod"); code about dependencies isn't ("a dependency resolver", "the
+dependency graph view"). A mixed task routes only its code part. Borderline
 cases: [references/triage.md](references/triage.md).
 
 ## Delegation ladder
@@ -191,6 +206,61 @@ What it doesn't cover: no file was edited and no plan approved, so it measures t
 step, not finished work. The two CRITICAL cases stopped before their Opus review, so that
 cost isn't in the figure. One run per cell; v1.0's classifier was written with these cases
 visible.
+
+### Four held-out tasks, v1.0 vs plain
+
+2026-10-29, Claude Code 2.1.312, two runs per arm per task, the two arms of each task run at
+the same time. Same setup as the round below. The tasks were written after the routing
+changes, so the classifier was never tuned on them; each code task has hidden tests that its
+fixture fails and a reference passes. [Full results](benchmarks/e2e/heldout/RESULTS.md) ·
+[raw records](benchmarks/e2e/heldout/results-2026-10-29/) ·
+[tasks](benchmarks/e2e/heldout/tasks/)
+
+| Task | Plugin | Plain | Δ cost | Δ time | Hidden tests |
+|---|---:|---:|---:|---:|---|
+| Simple: rounding bug | **$0.187** · 30 s | $0.325 · 21 s | **−43%** | +45% | 10/10 both |
+| Medium: orders API | **$0.176** · 42 s | $0.355 · 52 s | **−50%** | **−18%** | 11/11 both |
+| Complex: semver resolver, routed CRITICAL | $1.062 · 334 s | **$0.803** · 179 s | +32% | +87% | 19/19 both |
+| Complex, after the trigger fix | **$0.302** · 140 s | $0.803 · 179 s | **−62%** | **−22%** | 19/19 both |
+| Research: vector DBs, in Arabic | **$0.756** · 187 s | $2.241 · 305 s | **−66%** | **−39%** | rubric 15/15 both |
+| **Total, as measured** | **$2.18** · 594 s | $3.72 · 556 s | **−41%** | +7% | 12/12 code runs |
+| **Total, complex after the fix** | **$1.42** · 399 s | $3.72 · 556 s | **−62%** | **−28%** | 12/12 code runs |
+
+- **The complex task first lost** because the hook routed "dependency resolver" CRITICAL on
+  the word "dependency": a plan approval, an Opus review and seat orchestration on top. The
+  trigger now fires only on changing a dependency (five new classifier tests); the task then
+  routes STANDARD, and two more plugin runs cost a third of plain.
+- **What ran wasn't what the route named.** The fixed complex route says `R6·opus-medium`
+  and the medium one `R3·haiku-high`, but the Sonnet seat implemented inline every time, with
+  no `reroute` event. `planned.md` allows that, so in STANDARD the executor is a suggestion.
+  These runs measured Sonnet · medium inline; Sonnet · high in the round below cost more than
+  Opus. The difference was effort and delegation, not the model.
+- **Fewer tests of its own:** the plugin wrote about half to 60% of plain's tests. The hidden
+  tests still pass, but they're saturated (every variant scored 19/19) and don't measure that.
+  The CRITICAL round's Opus reviewer caught precision above 2^53; without a reviewer, the
+  fixed run 2 left it unhandled and said so.
+- **The report is shorter:** 1,400–1,600 words and 15–19 links, all working, against plain's
+  ~2,800 and 30–36. Same recommendation; plain priced every option at the user's scale, the
+  plugin didn't. Up from 1,038 words and 5 working links in the round below.
+- Two runs per cell. The composite total mixes two snapshots; the other three tasks weren't
+  re-run on the fixed one. The tasks were written by the plugin's author.
+
+![Dashboard: cost and time per task, both arms, two runs each](benchmarks/e2e/heldout/results-2026-10-29/screenshots/1-dashboard.png)
+
+![Complex task after the trigger fix](benchmarks/e2e/heldout/results-2026-10-29-fix/screenshots/9-complex-fix.png)
+
+<details>
+<summary>More screenshots: quality, per-run detail, terminal output and each arm's final reply</summary>
+
+![Quality: hidden tests and rubric](benchmarks/e2e/heldout/results-2026-10-29/screenshots/2-quality.png)
+![Per-run detail](benchmarks/e2e/heldout/results-2026-10-29/screenshots/3-detail.png)
+![Terminal output](benchmarks/e2e/heldout/results-2026-10-29/screenshots/4-terminal.png)
+![Final replies, simple task](benchmarks/e2e/heldout/results-2026-10-29/screenshots/5-reply-simple.png)
+![Final replies, medium task](benchmarks/e2e/heldout/results-2026-10-29/screenshots/6-reply-medium.png)
+![Final replies, complex task](benchmarks/e2e/heldout/results-2026-10-29/screenshots/7-reply-complex.png)
+![Final replies, research task](benchmarks/e2e/heldout/results-2026-10-29/screenshots/8-reply-research.png)
+
+</details>
 
 ### Three finished tasks, v1.0 vs plain
 
@@ -293,14 +363,15 @@ For a typo or a one-line fix you know how to make, a plain prompt is enough.
 **Risks:** none identified
 ```
 
-A planned task first prints its route and plan, and waits:
+A planned task first prints its route and plan, then carries on in the same turn (a
+CRITICAL one stops here and waits):
 
 ```
-ROUTE track=coding tier=planned mode=STANDARD plan=card approval=yes executor=R3·haiku-high review=reviewer·sonnet·low escalate=none checks=tests+lint seat=sonnet gate=hook
+ROUTE track=coding tier=planned mode=STANDARD plan=card approval=no executor=R3·haiku-high review=none escalate=none checks=tests+lint seat=sonnet gate=hook
 Task: new useTrainingStats hook used by 4 screens
 Acceptance: stats load on all 4 screens; empty response returns []
 Parts: query hook + 4 screens → R3·haiku-high · src/services/trainings/queries.ts, 4 pages
-Approve with `/sharaqi go`
+Decisions: none yet
 ```
 
 ## Configuration

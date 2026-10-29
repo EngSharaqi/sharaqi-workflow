@@ -1,0 +1,61 @@
+{
+  "arm": "plugin",
+  "task": "research",
+  "rep": "2",
+  "suite": "heldout",
+  "session_id": "2fc513e3-a681-4c62-8c71-02ece58ec143",
+  "exit_code": 0,
+  "timed_out": false,
+  "wall_s": 184.1,
+  "messages_sent": [
+    {
+      "t": 0.0,
+      "text": "/sharaqi:sharaqi do اعمل تقرير مقارنة عن قواعد بيانات المتجهات (vector databases) المتاحة سنة 2026، وعلى الأقل: pgvector وQdrant وMilvus وWeaviate وPinecone وChroma. لكل واحدة: الترخيص، طريقة التشغيل (self-hosted أو مُدارة)، أسعار النسخة المُدارة لو موجودة، نتايج الأداء المنشورة في بنشماركات معروفة، والحدود أو العيوب المعروفة. بعد كده فكّر واختار الأنسب لفريق من ٥ مطوّرين عنده حوالي ١٠ مليون متجه لنصوص عربي وإنجليزي، وميزانية تشغيل أقل من ٥٠٠ دولار في الشهر، وبيستخدم PostgreSQL أصلًا، واشرح سبب الاختيار والبديل التاني ومتى نغيّر. اذكر المصادر بروابطها. احفظ التقرير في ملف report.md في الريبو ده."
+    }
+  ],
+  "results": [
+    {
+      "subtype": "success",
+      "is_error": false,
+      "total_cost_usd": 0.7273573000000001,
+      "duration_ms": 183129,
+      "duration_api_ms": 336872,
+      "num_turns": 28,
+      "modelUsage": {
+        "claude-sonnet-5-5": {
+          "inputTokens": 99227,
+          "outputTokens": 17850,
+          "cacheReadInputTokens": 441716,
+          "cacheCreationInputTokens": 51621,
+          "webSearchRequests": 7,
+          "costUSD": 0.6976096,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 1333,
+          "cacheCreationEphemeral5mInputTokens": 0,
+          "cacheCreationEphemeral1hInputTokens": 51621,
+          "canonicalModel": "claude-sonnet-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-haiku-5-5": {
+          "inputTokens": 194452,
+          "outputTokens": 20605,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.029747700000000002,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "thinkingTokens": 11532,
+          "cacheCreationEphemeral5mInputTokens": 0,
+          "cacheCreationEphemeral1hInputTokens": 0,
+          "canonicalModel": "claude-haiku-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      }
+    }
+  ],
+  "final_text": "كتبتُ التقرير في `report.md` داخل الريبو. التوصية: **pgvector** على PostgreSQL الموجود عندكم، والبديل **Qdrant**.\n\n**سبب الاختيار.** حجم 10 ملايين متجه يدخل في نطاق pgvector، فلا تحتاجون خدمة جديدة تُشغَّل وتُراقَب. الحجم الخام نحو 41GB بـ 1024 بُعد، أو نحو 20.5GB مع `halfvec`، قبل فهرس HNSW. والفلترة باللغة والمستأجر شروط SQL عادية، وiterative scan في pgvector 0.8.0 يعالج مشكلة قلة النتائج بعد الفلترة.\n\n**متى تغيّرون إلى Qdrant.** القسم 5 من التقرير يفصّل الحالات:\n- حين لا يكفي زمن p95 بعد الضبط.\n- حين يتجاوز الحجم عقدة Postgres واحدة.\n- حين يزاحم حمل المتجهات حمل المعاملات.\n- حين تُرجع الفلاتر المعقدة نتائج ناقصة.\n\n**أسباب استبعاد الأربعة الباقين.** فصّلتها في القسم 3.\n- Pinecone: خدمة مُدارة فقط، وفاتورة القراءة يصعب التنبؤ بها.\n- Milvus: مصمَّم لمليارات المتجهات، وأرخص نسخة مُدارة منه تكلّف نحو 160–630$ شهريًا لعشرة ملايين متجه.\n- Weaviate: ثقيل الموارد في الاستضافة الذاتية، وفي مستودعه مجلد بترخيص تجاري.\n- Chroma: يقف عند حدود 10M على عقدة واحدة، ومنصته المُدارة الأحدث بين الستة.\n\n**ما لم أجده.**\n- لا يوجد بنشمارك مستقل يقارن الستة على 10M بنصوص عربية. كل المنشور من بائع أو لبائع، وأرقام Timescale تخص pgvectorscale (ملحق مبني فوق pgvector) على 50M متجه. وصفحة BGE-M3 لا تعرض أرقامًا للعربية، فالتوصية تتضمن اختبارًا على بياناتكم قبل الالتزام.\n- أسعار وحدات Qdrant Cloud غير منشورة في صفحتها، وصفحة AWS لم تعرض جداول RDS. لذلك لم أقدّر أيًّا منهما، وكتبتُ أن حسابهما يتم في الآلات الحاسبة.\n- مقال ينتقد نزاهة لوحة VDBBench أعاد 403، فلم أعتمد عليه.\n\n**فحوصات الأوامر.** نفّذتُ 7 عمليات بحث وفتحتُ 15 مصدرًا. فُتحت كل الروابط المذكورة في قسم المصادر بنجاح، والمصادر الثانوية التي لم تُفتح صفحاتها مذكورة بلا روابط ومعلَّمة في التقرير.\n\nلم أنفّذ أي commit أو push."
+}

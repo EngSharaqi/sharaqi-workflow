@@ -40,7 +40,7 @@ def route_of(prompt):
 # Expected v1.0 route per case: benchmarks/v1.0/expected.json (the scorer reads it too).
 with open(os.path.join(ROOT, "benchmarks", "v1.0", "expected.json"), encoding="utf-8") as _fh:
     _EXP = json.load(_fh)
-EXPECTED = _EXP["v1.0"]
+EXPECTED = _EXP["after-e2e"]  # the policy now; "v1.0" is what the paid round scored
 ENTRY = _EXP["entry"]
 
 # Written after the rules; (prompt, expected fields).
@@ -56,20 +56,27 @@ OTHER = [
     ("Change the submit button label to Save in src/components/Form.tsx",
      dict(tier="tiny", executor="inline")),
     ("Refactor the date parsing in src/utils/date.ts to handle timezones across 6 files",
-     dict(tier="planned", executor="R4·sonnet-high")),
+     dict(tier="planned", executor="R4·sonnet-medium")),
     ("Update docs/install.md with the new Node version", dict(track="noncoding")),
     ("Update the README section on installation", dict(track="noncoding")),
     ("Write a report on Q3 sales for the board", dict(track="noncoding", tier="direct")),
     ("Explain how the auth middleware works", dict(track="noncoding")),
     ("commit the changes", dict(track="ops", op="commit", authz="explicit-yes")),
     ("run the tests", dict(track="ops", op="test")),
-    ("Add pagination to the users list", dict(tier="planned", approval="yes")),
+    ("Add pagination to the users list", dict(tier="planned", approval="no", review="none")),
     # A constraint, not a change (v1.0 benchmark: "no new dependencies" routed critical).
     ("Update the landing page in page.js to the new layout, no new dependencies",
      dict(tier="planned")),
     ("Add a sidebar to the docs page without adding any new packages", dict(tier="planned")),
     ("Remove the dependency on moment, no new dependencies", dict(tier="critical")),
     ("Fix the login form, no new dependencies", dict(tier="critical", escalate="critical")),
+    # Code about dependencies is not a dependency change (held-out benchmark 2026-10-29).
+    ("Implement a dependency resolver in src/resolve.js; each dependency range is checked "
+     "when first considered", dict(tier="planned")),
+    ("Build the dependency graph view for the admin page", dict(tier="planned")),
+    ("Add a dependency on zod for form validation", dict(tier="critical")),
+    ("Upgrade the axios dependency to v2", dict(tier="critical")),
+    ("Run the dependency updates for this month", dict(tier="critical")),
 ]
 
 
@@ -106,7 +113,7 @@ class Cases(unittest.TestCase):
 
     def test_unknown_text_takes_the_safe_side(self):
         r, ctx = route_of("/sharaqi route frobnicate the widget")
-        self.assertEqual((r["track"], r["approval"]), ("coding", "yes"))
+        self.assertEqual((r["track"], r["tier"]), ("coding", "planned"))
         self.assertIn("confidence=low", ctx)
 
 
@@ -122,6 +129,32 @@ class Facts(unittest.TestCase):
     def test_writing_clause_doesnt_set_code_facts(self):
         _, ctx = route_of("/sharaqi route " + case_text("10"))
         self.assertNotIn("two-line", ctx.split("FACTS")[1].split("·")[0])
+
+
+
+class E2ETasks(unittest.TestCase):
+    """The three benchmarks/e2e prompts, which v1.0 misrouted (complex: lines=10, checks=no)."""
+
+    def task(self, name):
+        with open(os.path.join(ROOT, "benchmarks", "e2e", "tasks", name), encoding="utf-8") as fh:
+            return route_of("/sharaqi do " + fh.read().strip())
+
+    def test_complex_spec_goes_to_opus_with_estimated_size(self):
+        r, ctx = self.task("complex.txt")
+        self.assertEqual((r["executor"], r["escalate"]), ("R6·opus-medium", "reasoning"))
+        self.assertEqual((r["approval"], r["review"]), ("no", "none"))
+        facts = next(ln for ln in ctx.splitlines() if ln.startswith("FACTS "))
+        self.assertIn("checks=yes", facts)
+        self.assertIn("estimated", facts)
+
+    def test_medium_task_sees_its_checks(self):
+        r, ctx = self.task("medium.txt")
+        self.assertIn("checks=yes", ctx)
+        self.assertEqual(r["approval"], "no")
+
+    def test_report_gets_a_research_floor(self):
+        r, _ = self.task("report.txt")
+        self.assertEqual(r["research"], "searches>=6,sources>=10")
 
 
 class Command(unittest.TestCase):
@@ -163,7 +196,8 @@ class Injection(unittest.TestCase):
             for entry in ("route", "do"):
                 e = ENTRY.get(cid, entry)
                 _, ctx = route_of("/sharaqi %s %s" % (e, case_text(cid)))
-                limit = 1200 if e == "route" else 4000
+                # CRITICAL injects the planned steps plus its own.
+                limit = 1200 if e == "route" else 5500 if "tier=critical" in ctx else 4000
                 self.assertLess(len(ctx.encode("utf-8")), limit, (cid, e))
 
 
@@ -209,10 +243,17 @@ class Hook(unittest.TestCase):
         self.assertIsNone(classify.hook_main("not json"))
         self.assertIsNone(classify.hook_main("[1]"))
 
-    def test_planned_route_takes_base_and_waits_for_go(self):
+    def test_planned_route_takes_base_and_doesnt_wait(self):
+        c = self.ctx(self.hook("/sharaqi do " + case_text("2")))
+        self.assertRegex(c, r"\nBASE [0-9a-f]{40}\n")
+        self.assertIn("approval=no", c)
+        self.assertIsNone(self.hook("ok"), "nothing pending below CRITICAL")
+        self.assertIn("no plan is waiting", self.ctx(self.hook("/sharaqi go")))
+
+    def test_critical_route_takes_base_and_waits_for_go(self):
         status = subprocess.run(["git", "status", "--porcelain"], cwd=self.repo,
                                 capture_output=True, text=True).stdout
-        c = self.ctx(self.hook("/sharaqi do " + case_text("2")))
+        c = self.ctx(self.hook("/sharaqi do " + case_text("4")))
         base = [ln for ln in c.splitlines() if ln.startswith("BASE ")]
         self.assertEqual(len(base), 1)
         self.assertRegex(base[0], r"^BASE [0-9a-f]{40}$")
@@ -222,7 +263,7 @@ class Hook(unittest.TestCase):
         go = self.ctx(self.hook("/sharaqi go ship it"))
         self.assertIn("the user approved the plan", go)
         self.assertIn(base[0], go)
-        self.assertIn("ROUTE track=coding tier=planned", go)
+        self.assertIn("ROUTE track=coding tier=critical", go)
         self.assertIn("ship it", go)
         again = self.ctx(self.hook("/sharaqi go"))
         self.assertIn("no plan is waiting", again, "one approval per plan")
@@ -231,7 +272,7 @@ class Hook(unittest.TestCase):
         self.assertTrue(self.events()[0]["route"].startswith("ROUTE "))
 
     def test_plain_reply_while_waiting_warns_once(self):
-        self.hook("/sharaqi do " + case_text("2"))
+        self.hook("/sharaqi do " + case_text("4"))
         out = self.hook("yes")
         self.assertIn("systemMessage", out)
         self.assertNotIn("hookSpecificOutput", out, "the model isn't told anything")
@@ -266,11 +307,11 @@ class Hook(unittest.TestCase):
 
     def test_go_after_session_end_finds_the_plan(self):
         # claude -p / --resume: the same session id in a new process; SessionEnd keeps .pending.
-        self.hook("/sharaqi do " + case_text("2"))
+        self.hook("/sharaqi do " + case_text("4"))
         self.assertIn("the user approved the plan", self.ctx(self.hook("/sharaqi go")))
 
     def test_go_ignores_an_expired_plan(self):
-        self.hook("/sharaqi do " + case_text("2"))
+        self.hook("/sharaqi do " + case_text("4"))
         pending = os.path.join(self.tmp.name, "sharaqi-state", "s1.pending")
         old = time.time() - classify.PENDING_TTL_S - 60
         os.utime(pending, (old, old))
@@ -278,7 +319,7 @@ class Hook(unittest.TestCase):
 
     def test_gate_preflight_stops_before_any_work(self):
         self.set_bridge(False)
-        out = self.hook("/sharaqi do " + case_text("2"))
+        out = self.hook("/sharaqi do " + case_text("4"))
         self.assertTrue(self.ctx(out).startswith("CONTEXT GATE UNVERIFIABLE"))
         self.assertIn("/sharaqi setup", out["systemMessage"])
         self.assertIn("ROUTE ", self.ctx(out), "the route is still there for the record")

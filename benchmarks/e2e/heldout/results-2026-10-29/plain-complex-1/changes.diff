@@ -1,0 +1,615 @@
+diff --git a/src/resolve.js b/src/resolve.js
+index e1409f2..0eaf7a3 100644
+--- a/src/resolve.js
++++ b/src/resolve.js
+@@ -1,4 +1,224 @@
+-// Dependency resolver. Not implemented yet.
++// Dependency resolver: chronological backtracking over packages in the order
++// they are first needed (breadth-first), newest satisfying version first.
++
++const NUM = '(0|[1-9]\\d*)';
++const VERSION_RE = new RegExp(`^${NUM}\\.${NUM}\\.${NUM}$`);
++const COMPARATOR_RE = new RegExp(`^(<=|>=|<|>|=|\\^|~)?${NUM}\\.${NUM}\\.${NUM}$`);
++
++function parseVersion(str) {
++    const m = typeof str === 'string' ? VERSION_RE.exec(str) : null;
++    return m ? [BigInt(m[1]), BigInt(m[2]), BigInt(m[3])] : null;
++}
++
++function compare(a, b) {
++    for (let i = 0; i < 3; i++) {
++        if (a[i] !== b[i]) return a[i] < b[i] ? -1 : 1;
++    }
++    return 0;
++}
++
++const TESTS = {
++    '=': (c) => c === 0,
++    '>': (c) => c > 0,
++    '>=': (c) => c >= 0,
++    '<': (c) => c < 0,
++    '<=': (c) => c <= 0,
++};
++
++// Turns one comparator token into a list of primitive { op, v } checks.
++function parseComparator(token) {
++    if (token === '*') return [];
++    const m = COMPARATOR_RE.exec(token);
++    if (!m) return null;
++    const op = m[1] || '=';
++    const v = [BigInt(m[2]), BigInt(m[3]), BigInt(m[4])];
++    const [major, minor, patch] = v;
++    if (op === '^') {
++        let upper;
++        if (major > 0n) upper = [major + 1n, 0n, 0n];
++        else if (minor > 0n) upper = [0n, minor + 1n, 0n];
++        else upper = [0n, 0n, patch + 1n];
++        return [{ op: '>=', v }, { op: '<', v: upper }];
++    }
++    if (op === '~') {
++        return [{ op: '>=', v }, { op: '<', v: [major, minor + 1n, 0n] }];
++    }
++    return [{ op, v }];
++}
++
++// Returns a list of alternatives, each a list of { op, v } checks that must
++// all hold. Throws TypeError for anything that isn't a valid range.
++function parseRange(range, cache) {
++    if (typeof range === 'string' && cache.has(range)) return cache.get(range);
++    const invalid = () => new TypeError(`Invalid range: ${JSON.stringify(String(range))}`);
++    if (typeof range !== 'string') throw invalid();
++    const alternatives = range.split('||').map((alt) => {
++        const tokens = alt.trim().split(/\s+/).filter(Boolean);
++        if (tokens.length === 0) throw invalid();
++        return tokens.flatMap((token) => {
++            const checks = parseComparator(token);
++            if (!checks) throw invalid();
++            return checks;
++        });
++    });
++    cache.set(range, alternatives);
++    return alternatives;
++}
++
++function satisfies(version, parsedRange) {
++    return parsedRange.some((checks) =>
++        checks.every(({ op, v }) => TESTS[op](compare(version, v))));
++}
++
++function resolveError(conflict, fallback) {
++    const pkg = conflict ? conflict.pkg : fallback;
++    const detail = conflict ? `: ${conflict.reason}` : '';
++    const err = new Error(`Unable to resolve dependencies for "${pkg}"${detail}`);
++    err.code = 'ERESOLVE';
++    err.package = pkg;
++    return err;
++}
++
++function describe(constraints) {
++    return constraints.map((c) => `${c.range} (from ${c.from})`).join(', ');
++}
++
+ export function resolve(registry, root) {
+-    throw new Error('not implemented');
++    const rangeCache = new Map();
++    const rootNames = Object.keys(root);
++    const rootParsed = rootNames.map((name) => parseRange(root[name], rangeCache));
++
++    const has = (name) => Object.hasOwn(registry, name)
++        && registry[name] !== null && typeof registry[name] === 'object';
++    for (const name of rootNames) {
++        if (!has(name)) {
++            const err = new Error(`Package "${name}" not found in registry`);
++            err.code = 'ENOTFOUND';
++            err.package = name;
++            throw err;
++        }
++    }
++
++    // Published versions of a package, newest first. Malformed version keys
++    // can never satisfy a range, so they are dropped.
++    const versionCache = new Map();
++    function versionsOf(name) {
++        if (!versionCache.has(name)) {
++            const list = Object.keys(registry[name])
++                .map((str) => ({ str, v: parseVersion(str) }))
++                .filter((entry) => entry.v)
++                .sort((a, b) => compare(b.v, a.v));
++            versionCache.set(name, list);
++        }
++        return versionCache.get(name);
++    }
++
++    // Dependencies of name@version, with ranges parsed. Parsing happens the
++    // first time the resolver considers that version.
++    const depCache = new Map();
++    function depsOf(name, version) {
++        const key = `${name}@${version}`;
++        if (!depCache.has(key)) {
++            const raw = registry[name][version] ?? {};
++            const deps = Object.keys(raw).map((dep) => {
++                const range = raw[dep];
++                try {
++                    return { dep, range, parsed: parseRange(range, rangeCache) };
++                } catch (e) {
++                    throw new TypeError(`${e.message} in dependency "${dep}" of ${key}`);
++                }
++            });
++            depCache.set(key, deps);
++        }
++        return depCache.get(key);
++    }
++
++    // Search state. `order` lists packages in the order first needed; the
++    // first `frames.length` of them have been decided.
++    const order = [...rootNames];
++    const seen = new Set(rootNames);
++    const constraints = new Map(rootNames.map((name, i) => [name, [
++        { range: root[name], parsed: rootParsed[i], from: 'root' },
++    ]]));
++    const selected = new Map();
++    const frames = [];
++    let conflict = null;
++
++    // Tries the frame's remaining candidates in order. On success, records how
++    // to undo the selection and returns true.
++    function advance(frame) {
++        const { name } = frame;
++        while (frame.next < frame.candidates.length) {
++            const { str, v } = frame.candidates[frame.next++];
++            const deps = depsOf(name, str);
++            if (deps.some(({ dep }) => !has(dep))) continue;
++
++            selected.set(name, { str, v });
++            const clash = deps.find(({ dep, parsed }) =>
++                selected.has(dep) && !satisfies(selected.get(dep).v, parsed));
++            if (clash) {
++                conflict = {
++                    pkg: clash.dep,
++                    reason: `${name}@${str} requires ${clash.range}, `
++                        + `but ${clash.dep}@${selected.get(clash.dep).str} is selected`,
++                };
++                selected.delete(name);
++                continue;
++            }
++
++            const from = `${name}@${str}`;
++            for (const { dep, range, parsed } of deps) {
++                if (!constraints.has(dep)) constraints.set(dep, []);
++                constraints.get(dep).push({ range, parsed, from });
++                if (!seen.has(dep)) {
++                    seen.add(dep);
++                    order.push(dep);
++                }
++            }
++            frame.applied = deps;
++            return true;
++        }
++        return false;
++    }
++
++    function undo(frame) {
++        for (const { dep } of frame.applied) {
++            const list = constraints.get(dep);
++            list.pop();
++            if (list.length === 0) constraints.delete(dep);
++        }
++        while (order.length > frame.orderLength) seen.delete(order.pop());
++        selected.delete(frame.name);
++        frame.applied = null;
++    }
++
++    while (frames.length < order.length) {
++        const name = order[frames.length];
++        const known = constraints.get(name);
++        const candidates = versionsOf(name)
++            .filter(({ v }) => known.every(({ parsed }) => satisfies(v, parsed)));
++        if (candidates.length === 0) {
++            conflict = { pkg: name, reason: `no version satisfies ${describe(known)}` };
++        }
++        const frame = { name, candidates, next: 0, applied: null, orderLength: order.length };
++        frames.push(frame);
++
++        // Backtrack until some frame can move on to another candidate.
++        while (!advance(frames[frames.length - 1])) {
++            frames.pop();
++            if (frames.length === 0) throw resolveError(conflict, rootNames[0]);
++            undo(frames[frames.length - 1]);
++        }
++    }
++
++    const result = {};
++    for (const name of order) {
++        Object.defineProperty(result, name, {
++            value: selected.get(name).str,
++            enumerable: true,
++            writable: true,
++            configurable: true,
++        });
++    }
++    return result;
+ }
+diff --git a/test/resolve.test.js b/test/resolve.test.js
+new file mode 100644
+index 0000000..a041385
+--- /dev/null
++++ b/test/resolve.test.js
+@@ -0,0 +1,378 @@
++import assert from 'node:assert/strict';
++import { describe, test } from 'node:test';
++
++import { resolve } from '../src/resolve.js';
++
++// Registry where package `p` has the given versions and no dependencies.
++function only(versions) {
++    return { p: Object.fromEntries(versions.map((v) => [v, {}])) };
++}
++
++function pick(versions, range) {
++    return resolve(only(versions), { p: range }).p;
++}
++
++function expectCode(fn, code) {
++    let error;
++    try {
++        fn();
++    } catch (e) {
++        error = e;
++    }
++    assert.ok(error, 'expected an error');
++    assert.ok(!(error instanceof TypeError), `unexpected TypeError: ${error.message}`);
++    assert.equal(error.code, code);
++    return error;
++}
++
++describe('ranges', () => {
++    const all = ['0.0.3', '0.0.4', '0.2.3', '0.2.9', '0.3.0', '1.2.2', '1.2.3', '1.2.9',
++        '1.3.0', '1.9.0', '1.10.0', '2.0.0', '3.1.0'];
++
++    test('exact versions', () => {
++        assert.equal(pick(all, '1.2.3'), '1.2.3');
++        assert.equal(pick(all, '=1.2.3'), '1.2.3');
++    });
++
++    test('comparisons', () => {
++        assert.equal(pick(all, '>1.2.3'), '3.1.0');
++        assert.equal(pick(all, '>=1.2.3'), '3.1.0');
++        assert.equal(pick(all, '<1.2.3'), '1.2.2');
++        assert.equal(pick(all, '<=1.2.3'), '1.2.3');
++        assert.equal(pick(['1.2.3'], '>=1.2.3'), '1.2.3');
++        expectCode(() => pick(['1.2.3'], '>1.2.3'), 'ERESOLVE');
++        expectCode(() => pick(['1.2.3'], '<1.2.3'), 'ERESOLVE');
++    });
++
++    test('caret', () => {
++        assert.equal(pick(all, '^1.2.3'), '1.10.0');
++        assert.equal(pick(all, '^0.2.3'), '0.2.9');
++        assert.equal(pick(all, '^0.0.3'), '0.0.3');
++        assert.equal(pick(['0.0.0', '0.0.1'], '^0.0.0'), '0.0.0');
++        expectCode(() => pick(['1.2.2', '2.0.0'], '^1.2.3'), 'ERESOLVE');
++    });
++
++    test('tilde', () => {
++        assert.equal(pick(all, '~1.2.3'), '1.2.9');
++        assert.equal(pick(all, '~0.2.3'), '0.2.9');
++        expectCode(() => pick(['1.2.2', '1.3.0'], '~1.2.3'), 'ERESOLVE');
++    });
++
++    test('star matches anything', () => {
++        assert.equal(pick(all, '*'), '3.1.0');
++    });
++
++    test('versions compare numerically', () => {
++        assert.equal(pick(['1.9.0', '1.10.0', '1.2.0'], '*'), '1.10.0');
++        assert.equal(pick(['1.9.0', '1.10.0'], '<1.10.0'), '1.9.0');
++        assert.equal(pick(['9.0.0', '10.0.0'], '^9.0.0'), '9.0.0');
++    });
++
++    test('space-separated comparators must all hold', () => {
++        assert.equal(pick(all, '>=1.2.0 <1.5.0'), '1.3.0');
++        assert.equal(pick(all, '>=1.2.0   <1.3.0'), '1.2.9');
++        assert.equal(pick(all, '^1.0.0 <1.3.0'), '1.2.9');
++    });
++
++    test('|| separates alternatives', () => {
++        assert.equal(pick(all, '^1.0.0 || ^3.0.0'), '3.1.0');
++        assert.equal(pick(all, '^1.0.0 || ^4.0.0'), '1.10.0');
++        assert.equal(pick(all, '<0.1.0||2.0.0'), '2.0.0');
++        assert.equal(pick(all, '>=1.2.0 <1.3.0 || 0.2.3'), '1.2.9');
++    });
++
++    test('surrounding whitespace is ignored', () => {
++        assert.equal(pick(all, '  ^1.2.3  '), '1.10.0');
++        assert.equal(pick(all, '\t~1.2.3\n'), '1.2.9');
++        assert.equal(pick(all, ' ^0.0.3 ||  2.0.0 '), '2.0.0');
++    });
++
++    test('invalid ranges throw TypeError naming the range', () => {
++        for (const range of ['1.2', '^x', '>=', '', '   ', '^1.0.0 ||', '|| 1.0.0', '1.0.0 || || 2.0.0',
++            '1.2.3.4', 'v1.2.3', '> 1.2.3', '=>1.2.3', '1.2.3-beta', '^^1.2.3', '01.2.3', 'latest',
++            '1.0.0 | 2.0.0', '**']) {
++            assert.throws(() => pick(all, range), (e) => {
++                assert.ok(e instanceof TypeError, `${JSON.stringify(range)}: ${e}`);
++                assert.ok(e.message.includes(range), `${JSON.stringify(range)} not in ${e.message}`);
++                return true;
++            });
++        }
++    });
++
++    test('non-string ranges throw TypeError', () => {
++        assert.throws(() => pick(all, 1), TypeError);
++        assert.throws(() => pick(all, null), TypeError);
++    });
++});
++
++describe('resolution', () => {
++    test('empty root resolves to an empty object', () => {
++        assert.deepEqual(resolve({ a: { '1.0.0': {} } }, {}), {});
++    });
++
++    test('transitive dependencies are included', () => {
++        const registry = {
++            a: { '1.0.0': { b: '^1.0.0' } },
++            b: { '1.0.0': { c: '*' }, '1.1.0': { c: '~2.0.0' } },
++            c: { '2.0.5': {}, '2.1.0': {} },
++            unused: { '1.0.0': {} },
++        };
++        assert.deepEqual(resolve(registry, { a: '*' }), { a: '1.0.0', b: '1.1.0', c: '2.0.5' });
++    });
++
++    test('ranges from root and every selected version must hold', () => {
++        const registry = {
++            a: { '1.0.0': { c: '>=1.1.0' } },
++            b: { '1.0.0': { c: '<1.3.0' } },
++            c: { '1.0.0': {}, '1.1.0': {}, '1.2.0': {}, '1.3.0': {} },
++        };
++        assert.deepEqual(resolve(registry, { a: '*', b: '*', c: '^1.0.0' }),
++            { a: '1.0.0', b: '1.0.0', c: '1.2.0' });
++    });
++
++    test('a range added after a package is selected is checked', () => {
++        // c is selected (as a root entry) before b's range on it is known.
++        const registry = {
++            c: { '1.0.0': {}, '2.0.0': {} },
++            b: { '1.0.0': {}, '2.0.0': { c: '^1.0.0' } },
++        };
++        assert.deepEqual(resolve(registry, { c: '*', b: '*' }), { c: '2.0.0', b: '1.0.0' });
++    });
++
++    test('backs up to an earlier package when a later one conflicts', () => {
++        const registry = {
++            a: { '1.0.0': { c: '^1.0.0' }, '2.0.0': { c: '^2.0.0' } },
++            b: { '1.0.0': { c: '^1.0.0' } },
++            c: { '1.0.0': {}, '2.0.0': {} },
++        };
++        assert.deepEqual(resolve(registry, { a: '*', b: '*' }), { a: '1.0.0', b: '1.0.0', c: '1.0.0' });
++    });
++
++    test('backtracking drops packages only needed by an abandoned version', () => {
++        const registry = {
++            a: { '1.0.0': {}, '2.0.0': { x: '*', b: '^2.0.0' } },
++            b: { '1.0.0': {} },
++            x: { '1.0.0': {} },
++        };
++        const result = resolve(registry, { a: '*', b: '*' });
++        assert.deepEqual(result, { a: '1.0.0', b: '1.0.0' });
++        assert.ok(!('x' in result));
++    });
++
++    test('prefers the earlier-needed package when only one can be newest', () => {
++        const registry = {
++            a: { '1.0.0': {}, '2.0.0': { b: '1.0.0' } },
++            b: { '1.0.0': {}, '2.0.0': { a: '1.0.0' } },
++        };
++        assert.deepEqual(resolve(registry, { a: '*', b: '*' }), { a: '2.0.0', b: '1.0.0' });
++        assert.deepEqual(resolve(registry, { b: '*', a: '*' }), { b: '2.0.0', a: '1.0.0' });
++    });
++
++    test('order is breadth-first by first need', () => {
++        // Breadth-first: a, b, then a's dep c, then b's dep d. c is decided
++        // before d, so c gets its newest version and d has to adapt.
++        const registry = {
++            a: { '1.0.0': { c: '*' } },
++            b: { '1.0.0': { d: '*' } },
++            c: { '1.0.0': {}, '2.0.0': { d: '1.0.0' } },
++            d: { '1.0.0': {}, '2.0.0': { c: '1.0.0' } },
++        };
++        const result = resolve(registry, { a: '*', b: '*' });
++        assert.deepEqual(result, { a: '1.0.0', b: '1.0.0', c: '2.0.0', d: '1.0.0' });
++        assert.deepEqual(Object.keys(result), ['a', 'b', 'c', 'd']);
++    });
++
++    test('cycles are fine', () => {
++        const registry = {
++            a: { '1.0.0': { b: '^1.0.0' } },
++            b: { '1.0.0': { a: '^1.0.0' }, '1.1.0': { a: '^2.0.0' } },
++        };
++        assert.deepEqual(resolve(registry, { a: '*' }), { a: '1.0.0', b: '1.0.0' });
++        assert.deepEqual(resolve({ a: { '1.0.0': { a: '1.0.0' } } }, { a: '*' }), { a: '1.0.0' });
++        // A version that rules itself out can't be selected.
++        assert.deepEqual(resolve({ a: { '1.0.0': {}, '2.0.0': { a: '^1.0.0' } } }, { a: '*' }),
++            { a: '1.0.0' });
++    });
++
++    test('a version depending on a missing package is skipped', () => {
++        const registry = {
++            a: { '1.0.0': { b: '*' }, '2.0.0': { ghost: '*', b: '*' } },
++            b: { '1.0.0': {} },
++        };
++        assert.deepEqual(resolve(registry, { a: '*' }), { a: '1.0.0', b: '1.0.0' });
++    });
++
++    test('backtracks into deep chains', () => {
++        const registry = {
++            a: { '1.0.0': { b: '*' }, '2.0.0': { b: '*' } },
++            b: { '1.0.0': { c: '*' } },
++            c: { '1.0.0': {}, '2.0.0': { d: '*' } },
++            d: { '1.0.0': { a: '1.0.0' } },
++        };
++        // a@2 forces b, c@2, d, which needs a@1: c falls back to 1.0.0 first.
++        assert.deepEqual(resolve(registry, { a: '*' }), { a: '2.0.0', b: '1.0.0', c: '1.0.0' });
++    });
++
++    test('returns a new object and does not mutate inputs', () => {
++        const registry = {
++            a: { '1.0.0': { b: '^1.0.0' }, '2.0.0': { b: '^2.0.0' } },
++            b: { '1.0.0': {}, '2.0.0': { c: '9.9.9' } },
++            c: { '1.0.0': {} },
++        };
++        const root = { a: '*' };
++        const registryCopy = structuredClone(registry);
++        const rootCopy = structuredClone(root);
++        const result = resolve(registry, root);
++        assert.deepEqual(result, { a: '1.0.0', b: '1.0.0' });
++        assert.equal(Object.getPrototypeOf(result), Object.prototype);
++        assert.notEqual(result, root);
++        assert.deepEqual(registry, registryCopy);
++        assert.deepEqual(root, rootCopy);
++    });
++
++    test('package names that collide with Object.prototype', () => {
++        const registry = {
++            constructor: { '1.0.0': { __proto__: null, toString: '*' } },
++            toString: { '1.0.0': {} },
++        };
++        const root = JSON.parse('{"constructor": "*", "__proto__": "*"}');
++        const registryWithProto = JSON.parse('{"__proto__": {"1.0.0": {}}}');
++        Object.assign(registryWithProto, registry);
++        const result = resolve(registryWithProto, root);
++        assert.deepEqual(Object.keys(result), ['constructor', '__proto__', 'toString']);
++        assert.equal(result.__proto__, '1.0.0');
++        expectCode(() => resolve({}, { toString: '*' }), 'ENOTFOUND');
++    });
++});
++
++describe('errors', () => {
++    test('missing root dependency: ENOTFOUND', () => {
++        const error = expectCode(() => resolve({ a: { '1.0.0': {} } }, { a: '*', nope: '^1.0.0' }), 'ENOTFOUND');
++        assert.equal(error.package, 'nope');
++    });
++
++    test('root ranges are checked before anything else', () => {
++        assert.throws(() => resolve({}, { missing: '*', a: 'bad' }), TypeError);
++        assert.throws(() => resolve({ a: { '1.0.0': {} } }, { a: '9.9.9', b: '^x' }), TypeError);
++    });
++
++    test('dependency ranges are checked when a version is first considered', () => {
++        const registry = {
++            a: { '1.0.0': { b: 'nonsense' }, '2.0.0': {} },
++            b: { '1.0.0': {} },
++        };
++        // a@1.0.0 is never considered.
++        assert.deepEqual(resolve(registry, { a: '*' }), { a: '2.0.0' });
++        assert.throws(() => resolve(registry, { a: '1.0.0' }),
++            (e) => e instanceof TypeError && e.message.includes('nonsense'));
++        // Even a version that would be skipped for a missing dependency is
++        // considered first.
++        const missing = { a: { '1.0.0': { ghost: '*', b: '>=' } }, b: { '1.0.0': {} } };
++        assert.throws(() => resolve(missing, { a: '*' }), (e) => e instanceof TypeError && e.message.includes('>='));
++    });
++
++    test('no solution: ERESOLVE naming a package', () => {
++        const registry = {
++            a: { '1.0.0': { c: '^1.0.0' } },
++            b: { '1.0.0': { c: '^2.0.0' } },
++            c: { '1.0.0': {}, '2.0.0': {} },
++        };
++        const error = expectCode(() => resolve(registry, { a: '*', b: '*' }), 'ERESOLVE');
++        assert.ok(['a', 'b', 'c'].some((name) => error.message.includes(name)), error.message);
++    });
++
++    test('no version matches a root range: ERESOLVE', () => {
++        const error = expectCode(() => resolve({ a: { '1.0.0': {} } }, { a: '^2.0.0' }), 'ERESOLVE');
++        assert.match(error.message, /a/);
++        expectCode(() => resolve({ a: {} }, { a: '*' }), 'ERESOLVE');
++    });
++
++    test('every version needs a missing package: ERESOLVE', () => {
++        const registry = { a: { '1.0.0': { ghost: '*' }, '2.0.0': { ghost: '^1.0.0' } } };
++        const error = expectCode(() => resolve(registry, { a: '*' }), 'ERESOLVE');
++        assert.match(error.message, /a|ghost/);
++    });
++});
++
++// Straightforward recursive statement of the preference rules, used as an
++// oracle on random registries.
++function reference(registry, root) {
++    const cmp = (x, y) => {
++        const a = x.split('.').map(Number);
++        const b = y.split('.').map(Number);
++        return a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
++    };
++    const sat = (v, range) => resolve({ p: { [v]: {} } }, { p: range }) && true;
++    const ok = (v, range) => {
++        try {
++            return sat(v, range);
++        } catch {
++            return false;
++        }
++    };
++    function step(order, ranges, selected) {
++        const i = Object.keys(selected).length;
++        if (i === order.length) return selected;
++        const name = order[i];
++        const versions = Object.keys(registry[name]).sort((x, y) => cmp(y, x))
++            .filter((v) => ranges.filter(([n]) => n === name).every(([, r]) => ok(v, r)));
++        for (const v of versions) {
++            const deps = Object.entries(registry[name][v]);
++            if (deps.some(([d]) => !(d in registry))) continue;
++            const sel = { ...selected, [name]: v };
++            if (deps.some(([d, r]) => d in sel && !ok(sel[d], r))) continue;
++            const nextOrder = [...order];
++            for (const [d] of deps) if (!nextOrder.includes(d)) nextOrder.push(d);
++            const found = step(nextOrder, [...ranges, ...deps], sel);
++            if (found) return found;
++        }
++        return null;
++    }
++    return step(Object.keys(root), Object.entries(root), {});
++}
++
++function randomRegistry(seed) {
++    let s = seed;
++    const rand = (n) => {
++        s = (s * 1103515245 + 12345) % 2147483648;
++        return s % n;
++    };
++    const names = ['a', 'b', 'c', 'd', 'e'];
++    const versions = ['0.1.0', '0.1.5', '1.0.0', '1.2.0', '1.10.0', '2.0.0'];
++    const ranges = ['*', '^1.0.0', '~1.2.0', '<1.2.0', '>=1.2.0', '^0.1.0', '2.0.0',
++        '^0.1.0 || ^2.0.0', '>=1.0.0 <2.0.0', '>1.10.0'];
++    const registry = {};
++    for (const name of names) {
++        registry[name] = {};
++        for (const v of versions) {
++            if (rand(3) === 0) continue;
++            const deps = {};
++            const count = rand(3);
++            for (let k = 0; k < count; k++) {
++                const dep = rand(12) === 0 ? 'ghost' : names[rand(names.length)];
++                deps[dep] = ranges[rand(ranges.length)];
++            }
++            registry[name][v] = deps;
++        }
++    }
++    const root = {};
++    for (const name of names) if (rand(2) === 0) root[name] = ranges[rand(ranges.length)];
++    return { registry, root };
++}
++
++test('matches a reference implementation on random registries', () => {
++    let solved = 0;
++    for (let seed = 1; seed <= 400; seed++) {
++        const { registry, root } = randomRegistry(seed);
++        const expected = reference(registry, root);
++        if (expected) {
++            const actual = resolve(registry, root);
++            assert.deepEqual(actual, expected, `seed ${seed}`);
++            assert.deepEqual(Object.keys(actual), Object.keys(expected), `seed ${seed}`);
++            solved++;
++        } else {
++            expectCode(() => resolve(registry, root), 'ERESOLVE');
++        }
++    }
++    assert.ok(solved > 30, `only ${solved} solvable cases`);
++});

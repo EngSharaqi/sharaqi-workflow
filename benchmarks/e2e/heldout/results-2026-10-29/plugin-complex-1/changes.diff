@@ -1,0 +1,505 @@
+diff --git a/src/resolve.js b/src/resolve.js
+index e1409f2..8b12923 100644
+--- a/src/resolve.js
++++ b/src/resolve.js
+@@ -1,4 +1,250 @@
+-// Dependency resolver. Not implemented yet.
++// Dependency resolver: picks one version per needed package so that every
++// range from the root and from every selected version holds.
++//
++// Packages are resolved breadth-first in first-needed order, each taking the
++// newest version allowed by the ranges known so far. Conflicts back up to the
++// previous decision and try its next older candidate. The search is iterative
++// (explicit stack plus undo log), so deep graphs cannot overflow the call stack.
++
++const NUM = '(0|[1-9]\\d*)';
++const VERSION_RE = new RegExp(`^${NUM}\\.${NUM}\\.${NUM}$`);
++const COMPARATOR_RE = new RegExp(`^(>=|<=|>|<|=|\\^|~)?${NUM}\\.${NUM}\\.${NUM}$`);
++
++const hasOwn = (obj, key) => obj !== null && typeof obj === 'object' && Object.hasOwn(obj, key);
++
++function parseVersion(text) {
++    const m = VERSION_RE.exec(text);
++    const v = m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
++    return v && v.every(Number.isSafeInteger) ? v : null;
++}
++
++function compare(a, b) {
++    return a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
++}
++
++// A comparator becomes a list of [op, version] bounds that must all hold.
++function comparatorBounds(text, range) {
++    if (text === '*') {
++        return [];
++    }
++    const m = COMPARATOR_RE.exec(text);
++    if (!m) {
++        throw new TypeError(`Invalid range: "${range}"`);
++    }
++    const op = m[1] ?? '=';
++    const v = [Number(m[2]), Number(m[3]), Number(m[4])];
++    if (!v.every(Number.isSafeInteger)) {
++        throw new TypeError(`Invalid range: "${range}"`);
++    }
++    switch (op) {
++        case '^': {
++            let upper;
++            if (v[0] > 0) {
++                upper = [v[0] + 1, 0, 0];
++            } else if (v[1] > 0) {
++                upper = [0, v[1] + 1, 0];
++            } else {
++                upper = [0, 0, v[2] + 1];
++            }
++            return [['>=', v], ['<', upper]];
++        }
++        case '~':
++            return [['>=', v], ['<', [v[0], v[1] + 1, 0]]];
++        default:
++            return [[op, v]];
++    }
++}
++
++const rangeCache = new Map();
++
++// Returns an array of alternatives; each alternative is a list of bounds.
++function parseRange(range) {
++    if (typeof range !== 'string') {
++        throw new TypeError(`Invalid range: "${String(range)}"`);
++    }
++    if (rangeCache.has(range)) {
++        return rangeCache.get(range);
++    }
++    const alternatives = range.split('||').map((alt) => {
++        const trimmed = alt.trim();
++        if (trimmed === '') {
++            throw new TypeError(`Invalid range: "${range}"`);
++        }
++        return trimmed.split(/\s+/).flatMap((c) => comparatorBounds(c, range));
++    });
++    if (rangeCache.size >= 1000) {
++        rangeCache.clear();
++    }
++    rangeCache.set(range, alternatives);
++    return alternatives;
++}
++
++function holds([op, bound], v) {
++    const c = compare(v, bound);
++    switch (op) {
++        case '=': return c === 0;
++        case '>': return c > 0;
++        case '>=': return c >= 0;
++        case '<': return c < 0;
++        case '<=': return c <= 0;
++        default: return false;
++    }
++}
++
++function satisfies(parsed, v) {
++    return parsed.some((alt) => alt.every((b) => holds(b, v)));
++}
++
++function resolveError(name) {
++    const err = new Error(`Unable to resolve a version of "${name}" that satisfies all ranges`);
++    err.code = 'ERESOLVE';
++    err.package = name;
++    return err;
++}
++
+ export function resolve(registry, root) {
+-    throw new Error('not implemented');
++    const rootNames = Object.keys(root);
++
++    // Root ranges are validated before anything else, including ENOTFOUND.
++    const rootParsed = rootNames.map((name) => parseRange(root[name]));
++    for (const name of rootNames) {
++        if (!hasOwn(registry, name)) {
++            const err = new Error(`Package "${name}" not found in registry`);
++            err.code = 'ENOTFOUND';
++            err.package = name;
++            throw err;
++        }
++    }
++
++    // Sorted (newest first) valid versions per package, computed lazily.
++    const versionCache = new Map();
++    const versionsOf = (name) => {
++        if (!versionCache.has(name)) {
++            const list = [];
++            for (const text of Object.keys(registry[name] ?? {})) {
++                const v = parseVersion(text);
++                if (v) {
++                    list.push({ text, v });
++                }
++            }
++            list.sort((a, b) => compare(b.v, a.v));
++            versionCache.set(name, list);
++        }
++        return versionCache.get(name);
++    };
++
++    const ranges = new Map(); // name -> parsed ranges known so far
++    const selected = new Map(); // name -> { text, v }
++    const queue = [];
++    const queued = new Set();
++    const log = []; // names whose range list got one entry appended
++
++    const addRange = (name, parsed) => {
++        if (!ranges.has(name)) {
++            ranges.set(name, []);
++        }
++        ranges.get(name).push(parsed);
++        log.push(name);
++    };
++    const enqueue = (name) => {
++        if (!queued.has(name)) {
++            queued.add(name);
++            queue.push(name);
++        }
++    };
++
++    rootNames.forEach((name, i) => {
++        addRange(name, rootParsed[i]);
++        enqueue(name);
++    });
++
++    // Undo everything done after a frame was opened.
++    const rewind = (frame) => {
++        selected.delete(frame.name);
++        while (log.length > frame.logMark) {
++            ranges.get(log.pop()).pop();
++        }
++        while (queue.length > frame.queueLen) {
++            queued.delete(queue.pop());
++        }
++    };
++
++    // Try to take `cand` for `name`; returns false if it cannot be selected.
++    const tryCandidate = (name, cand) => {
++        const deps = registry[name][cand.text];
++        const depNames = deps !== null && typeof deps === 'object' ? Object.keys(deps) : [];
++        // Validate every dependency range first: invalid ranges are fatal.
++        const parsed = depNames.map((dep) => parseRange(deps[dep]));
++        for (let i = 0; i < depNames.length; i++) {
++            const dep = depNames[i];
++            if (!hasOwn(registry, dep)) {
++                return false;
++            }
++            const current = dep === name ? cand : selected.get(dep);
++            if (current && !satisfies(parsed[i], current.v)) {
++                return false;
++            }
++        }
++        selected.set(name, cand);
++        depNames.forEach((dep, i) => {
++            addRange(dep, parsed[i]);
++            enqueue(dep);
++        });
++        return true;
++    };
++
++    const stack = [];
++    let deepest = null; // { depth, name } of the deepest exhausted decision
++    let pos = 0;
++
++    for (;;) {
++        if (pos === queue.length) {
++            const result = {};
++            for (const name of queue) {
++                Object.defineProperty(result, name, {
++                    value: selected.get(name).text,
++                    enumerable: true,
++                    writable: true,
++                    configurable: true,
++                });
++            }
++            return result;
++        }
++
++        const name = queue[pos];
++        const known = ranges.get(name) ?? [];
++        stack.push({
++            name,
++            pos,
++            candidates: versionsOf(name).filter((c) => known.every((r) => satisfies(r, c.v))),
++            next: 0,
++            logMark: log.length,
++            queueLen: queue.length,
++        });
++
++        // Advance the top frame to its next workable candidate, backing up as needed.
++        for (;;) {
++            const frame = stack.at(-1);
++            if (!frame) {
++                throw resolveError(deepest.name);
++            }
++            rewind(frame);
++            let taken = false;
++            while (frame.next < frame.candidates.length) {
++                const cand = frame.candidates[frame.next++];
++                if (tryCandidate(frame.name, cand)) {
++                    taken = true;
++                    break;
++                }
++            }
++            if (taken) {
++                pos = frame.pos + 1;
++                break;
++            }
++            if (!deepest || stack.length > deepest.depth) {
++                deepest = { depth: stack.length, name: frame.name };
++            }
++            stack.pop();
++        }
++    }
+ }
+diff --git a/test/resolve.test.js b/test/resolve.test.js
+new file mode 100644
+index 0000000..d109767
+--- /dev/null
++++ b/test/resolve.test.js
+@@ -0,0 +1,242 @@
++import assert from 'node:assert/strict';
++import { test } from 'node:test';
++
++import { resolve } from '../src/resolve.js';
++
++// Registry of one package `p` with the given versions and no dependencies.
++function single(versions) {
++    return { p: Object.fromEntries(versions.map((v) => [v, {}])) };
++}
++
++function pick(versions, range) {
++    return resolve(single(versions), { p: range }).p;
++}
++
++function deepFreeze(obj) {
++    for (const value of Object.values(obj)) {
++        if (value !== null && typeof value === 'object') {
++            deepFreeze(value);
++        }
++    }
++    return Object.freeze(obj);
++}
++
++const ALL = ['0.0.3', '0.0.4', '0.0.9', '0.2.3', '0.2.9', '0.3.0', '1.2.2', '1.2.3', '1.2.9', '1.3.0', '1.9.0', '2.0.0'];
++
++test('exact ranges with and without =', () => {
++    assert.equal(pick(ALL, '1.2.3'), '1.2.3');
++    assert.equal(pick(ALL, '=1.2.3'), '1.2.3');
++});
++
++test('comparison operators', () => {
++    assert.equal(pick(ALL, '>1.2.3'), '2.0.0');
++    assert.equal(pick(ALL, '>=1.2.3'), '2.0.0');
++    assert.equal(pick(ALL, '<1.2.3'), '1.2.2');
++    assert.equal(pick(ALL, '<=1.2.3'), '1.2.3');
++    assert.equal(pick(['1.2.3'], '>=1.2.3'), '1.2.3');
++});
++
++test('caret ranges, including zero majors', () => {
++    assert.equal(pick(ALL, '^1.2.3'), '1.9.0');
++    assert.equal(pick(ALL, '^0.2.3'), '0.2.9');
++    assert.equal(pick(ALL, '^0.0.3'), '0.0.3');
++    assert.equal(pick(['0.0.0', '0.0.1'], '^0.0.0'), '0.0.0');
++});
++
++test('tilde ranges, including zero majors', () => {
++    assert.equal(pick(ALL, '~1.2.3'), '1.2.9');
++    assert.equal(pick(ALL, '~0.0.3'), '0.0.9');
++    assert.equal(pick(['0.0.3', '0.1.0'], '~0.0.3'), '0.0.3');
++});
++
++test('star, intersections, unions and surrounding whitespace', () => {
++    assert.equal(pick(ALL, '*'), '2.0.0');
++    assert.equal(pick(ALL, '>=1.2.0 <1.5.0'), '1.3.0');
++    assert.equal(pick(['1.0.0', '2.0.0', '3.1.0', '4.0.0'], '^1.0.0 || ^3.0.0'), '3.1.0');
++    assert.equal(pick(['1.0.0', '2.0.0'], '  ^1.0.0  '), '1.0.0');
++    assert.equal(pick(['1.0.0', '2.0.0'], ' 1.0.0 ||  2.0.0 '), '2.0.0');
++});
++
++test('versions compare numerically', () => {
++    assert.equal(pick(['1.9.0', '1.10.0', '1.2.0'], '*'), '1.10.0');
++    assert.equal(pick(['1.9.0', '1.10.0'], '<1.10.0'), '1.9.0');
++    assert.equal(pick(['9.0.0', '10.0.0'], '^9.0.0'), '9.0.0');
++});
++
++test('invalid root ranges throw TypeError containing the range', () => {
++    const invalid = ['1.2', '^x', '>=', '', '^1.0.0 ||', '> 1.2.3', '01.2.3', '1.2.x', '   ', '|| 1.0.0', '1.0.0 | 2.0.0'];
++    for (const range of invalid) {
++        assert.throws(
++            () => pick(['1.2.3'], range),
++            (err) => err instanceof TypeError && err.message.includes(`"${range}"`),
++            `range ${JSON.stringify(range)}`,
++        );
++    }
++});
++
++test('root ranges are validated before ENOTFOUND checks', () => {
++    assert.throws(
++        () => resolve({}, { missing: '^1.0.0', p: 'bad' }),
++        (err) => err instanceof TypeError && err.message.includes('bad'),
++    );
++});
++
++test('invalid dependency range throws when the version is first considered', () => {
++    const registry = {
++        a: { '2.0.0': { b: '^x' }, '1.0.0': {} },
++        b: { '1.0.0': {} },
++    };
++    // An older version of `a` would work, but the newest is considered first.
++    assert.throws(() => resolve(registry, { a: '*' }), (err) => err instanceof TypeError && err.message.includes('^x'));
++    // A version never considered does not get its ranges checked.
++    assert.deepEqual(resolve(registry, { a: '1.0.0' }), { a: '1.0.0' });
++});
++
++test('resolves transitive dependencies breadth-first', () => {
++    const registry = {
++        a: { '1.0.0': { c: '^1.0.0' } },
++        b: { '1.0.0': { c: '<1.5.0' } },
++        c: { '1.0.0': {}, '1.4.0': {}, '1.6.0': {} },
++    };
++    assert.deepEqual(resolve(registry, { a: '*', b: '*' }), { a: '1.0.0', b: '1.0.0', c: '1.4.0' });
++});
++
++test('backtracks to an older version when the newest leads to a conflict', () => {
++    const registry = {
++        a: { '2.0.0': { c: '^2.0.0' }, '1.0.0': { c: '^1.0.0' } },
++        b: { '1.0.0': { c: '^1.0.0' } },
++        c: { '1.0.0': {}, '2.0.0': {} },
++    };
++    assert.deepEqual(resolve(registry, { a: '*', b: '*' }), { a: '1.0.0', b: '1.0.0', c: '1.0.0' });
++});
++
++test('backtracks across several levels', () => {
++    const registry = {
++        a: { '2.0.0': { x: '*' }, '1.0.0': {} },
++        x: { '2.0.0': { y: '^2.0.0' }, '1.0.0': { y: '^2.0.0' } },
++        y: { '2.0.0': { z: '^5.0.0' } },
++        z: { '1.0.0': {} },
++    };
++    assert.deepEqual(resolve(registry, { a: '*' }), { a: '1.0.0' });
++});
++
++test('packages needed only by unselected versions are absent', () => {
++    const registry = {
++        a: { '2.0.0': { gone: '*', c: '^2.0.0' }, '1.0.0': { c: '^1.0.0' } },
++        b: { '1.0.0': { c: '^1.0.0' } },
++        c: { '1.0.0': {}, '2.0.0': {} },
++        gone: { '1.0.0': {} },
++    };
++    const result = resolve(registry, { a: '*', b: '*' });
++    assert.deepEqual(result, { a: '1.0.0', b: '1.0.0', c: '1.0.0' });
++    assert.equal(Object.hasOwn(result, 'gone'), false);
++});
++
++test('cycles resolve', () => {
++    const registry = {
++        a: { '1.0.0': { b: '^1.0.0' } },
++        b: { '1.0.0': { a: '^1.0.0' }, '1.1.0': { a: '^2.0.0' } },
++    };
++    assert.deepEqual(resolve(registry, { a: '*' }), { a: '1.0.0', b: '1.0.0' });
++});
++
++test('self-dependency must be satisfied by the version itself', () => {
++    const registry = {
++        p: { '2.0.0': { p: '^1.0.0' }, '1.5.0': { p: '^1.0.0' } },
++    };
++    assert.deepEqual(resolve(registry, { p: '*' }), { p: '1.5.0' });
++    assert.throws(() => resolve({ p: { '1.0.0': { p: '^2.0.0' } } }, { p: '*' }), { code: 'ERESOLVE' });
++});
++
++test('diamond conflict with no solution is ERESOLVE naming a package', () => {
++    const registry = {
++        a: { '1.0.0': { c: '^1.0.0' } },
++        b: { '1.0.0': { c: '^2.0.0' } },
++        c: { '1.0.0': {}, '2.0.0': {} },
++    };
++    assert.throws(
++        () => resolve(registry, { a: '*', b: '*' }),
++        (err) => err.code === 'ERESOLVE' && /"(a|b|c)"/.test(err.message),
++    );
++});
++
++test('version depending on a package missing from the registry is skipped', () => {
++    const registry = {
++        a: { '2.0.0': { ghost: '*' }, '1.0.0': {} },
++    };
++    assert.deepEqual(resolve(registry, { a: '*' }), { a: '1.0.0' });
++    assert.throws(() => resolve({ a: { '1.0.0': { ghost: '*' } } }, { a: '*' }), { code: 'ERESOLVE' });
++});
++
++test('root dependency missing from the registry is ENOTFOUND', () => {
++    assert.throws(
++        () => resolve({ a: { '1.0.0': {} } }, { a: '*', nope: '^1.0.0' }),
++        (err) => err instanceof Error && err.code === 'ENOTFOUND' && err.package === 'nope',
++    );
++});
++
++test('root range matching no version is ERESOLVE, not ENOTFOUND', () => {
++    assert.throws(
++        () => resolve(single(['1.0.0']), { p: '^2.0.0' }),
++        (err) => err.code === 'ERESOLVE' && err.message.includes('"p"'),
++    );
++});
++
++test('prototype-like package names are handled as plain names', () => {
++    const registry = JSON.parse('{"__proto__": {"1.0.0": {"constructor": "^1.0.0"}}, "constructor": {"1.0.0": {}}}');
++    const result = resolve(registry, JSON.parse('{"__proto__": "*"}'));
++    assert.equal(Object.getPrototypeOf(result), Object.prototype);
++    assert.deepEqual(Object.keys(result), ['__proto__', 'constructor']);
++    assert.equal(Object.getOwnPropertyDescriptor(result, '__proto__').value, '1.0.0');
++    assert.equal(result.constructor, '1.0.0');
++    assert.throws(() => resolve({}, { toString: '*' }), { code: 'ENOTFOUND', package: 'toString' });
++});
++
++test('does not mutate inputs and returns a fresh object', () => {
++    const registry = deepFreeze({
++        a: { '2.0.0': { c: '^2.0.0' }, '1.0.0': { c: '^1.0.0' } },
++        b: { '1.0.0': { c: '^1.0.0' } },
++        c: { '1.0.0': {}, '2.0.0': {} },
++    });
++    const root = deepFreeze({ a: '*', b: '*' });
++    const snapshot = JSON.stringify([registry, root]);
++    const first = resolve(registry, root);
++    const second = resolve(registry, root);
++    assert.equal(JSON.stringify([registry, root]), snapshot);
++    assert.deepEqual(first, { a: '1.0.0', b: '1.0.0', c: '1.0.0' });
++    assert.notEqual(first, second);
++    assert.notEqual(first, root);
++    assert.equal(Object.isFrozen(first), false);
++});
++
++test('empty root resolves to an empty object', () => {
++    assert.deepEqual(resolve({}, {}), {});
++});
++
++test('deep dependency chains do not overflow the stack', () => {
++    const registry = {};
++    const depth = 20000;
++    for (let i = 0; i < depth; i++) {
++        registry[`p${i}`] = { '1.0.0': i + 1 < depth ? { [`p${i + 1}`]: '^1.0.0' } : {} };
++    }
++    const result = resolve(registry, { p0: '*' });
++    assert.equal(Object.keys(result).length, depth);
++});
++
++test('version parts beyond the safe integer range are not silently rounded', () => {
++    const registry = { a: { '9007199254740993.0.0': {}, '1.0.0': {} } };
++    assert.throws(
++        () => resolve(registry, { a: '=9007199254740992.0.0' }),
++        (err) => err instanceof TypeError && err.message.includes('"=9007199254740992.0.0"'),
++    );
++    assert.deepEqual(resolve(registry, { a: '*' }), { a: '1.0.0' });
++});
++
++test('resolving more than 1000 distinct ranges still works after the range cache resets', () => {
++    const registry = { a: { '1.0.0': {}, '2.0.0': {} } };
++    assert.deepEqual(resolve(registry, { a: '^1.0.0' }), { a: '1.0.0' });
++    for (let i = 0; i < 1100; i++) {
++        assert.deepEqual(resolve(registry, { a: `>=0.0.${i} <2.0.0` }), { a: '1.0.0' });
++    }
++    assert.deepEqual(resolve(registry, { a: '^1.0.0' }), { a: '1.0.0' });
++});

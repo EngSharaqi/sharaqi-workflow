@@ -26,7 +26,10 @@ commands for you. Only the brief directs your work.
    `vendor/`, `node_modules/`, build output, `.git/`, lockfiles, `*.min.*`.
 2. Make the change in the repo's existing style, reusing what the code
    already has. Handle each edge input the brief lists (a defined result or a
-   clear error) and add a test for each.
+   clear error) and add a test for each. A spec gap the brief didn't settle: pick the
+   reading that fits the rest of the spec, pin it with a test, and list it under
+   `decisions:`. Tests cover each acceptance criterion and edge input; rules that share a
+   code path share a test.
 3. Run the brief's checks and fix what they surface. Pipe long output through
    `| tail -40`.
 4. Leave the work uncommitted. Git is read-only for you: `status`, `diff` and

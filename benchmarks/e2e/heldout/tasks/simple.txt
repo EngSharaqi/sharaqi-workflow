@@ -1,0 +1,1 @@
+Our job logs sometimes say a job took "1m 60s": `formatDuration(119999)` in `src/duration.js` returns `1m 60s` instead of `2m 0s`. Fix it so the seconds never show 60 (round to the nearest second first, then split into hours, minutes and seconds), add a regression test, and make sure `npm test` passes.

@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Score every <runs>/<arm>-<task> made by drive.py. Free: no model call.
 
-usage: python3 -I score.py <runs-dir> [--links]   (--links: HEAD-check every URL in report.md)
+usage: python3 -I score.py <runs-dir> [--links] [--suite DIR]
+  --links: HEAD-check every URL in report.md. --suite: folder holding hidden/ (default: here).
+  A task with no hidden/<task>/hidden.test.js is scored as a report; hidden/<task>/rubric.json,
+  when present, lists terms the report must cover ({"terms": {label: [regex, ...]}}).
 
 Cost is Claude Code's own `total_cost_usd` from the run's last result event (cumulative for the
 session; checked against the sum of modelUsage costUSD). Code tasks: the hidden tests are copied
@@ -17,6 +20,7 @@ import sys
 import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+SUITE = HERE
 
 
 def node_tests(work, files):
@@ -32,7 +36,7 @@ def node_tests(work, files):
 def code_scores(work, task):
     tmp = tempfile.mkdtemp()
     shutil.copytree(work, tmp, dirs_exist_ok=True, ignore=shutil.ignore_patterns(".git"))
-    shutil.copy(os.path.join(HERE, "hidden", task, "hidden.test.js"), os.path.join(tmp, "test"))
+    shutil.copy(os.path.join(SUITE, "hidden", task, "hidden.test.js"), os.path.join(tmp, "test"))
     hidden = node_tests(tmp, ["test/hidden.test.js"])
     os.remove(os.path.join(tmp, "test", "hidden.test.js"))
     own = subprocess.run(["npm", "test"], cwd=tmp, capture_output=True, text=True, timeout=300)
@@ -55,7 +59,7 @@ def diff_stat(work):
     return files
 
 
-def report_scores(work, links):
+def report_scores(work, links, task="report"):
     p = os.path.join(work, "report.md")
     if not os.path.exists(p):
         return {"exists": False}
@@ -71,6 +75,13 @@ def report_scores(work, links):
         "urls": len(urls), "domains": len(domains),
         "salary_mentions": len(re.findall(r"\$\s?\d|\d\s?(?:دولار|ريال|USD|ألف)|راتب|رواتب", s)),
     }
+    rub = os.path.join(SUITE, "hidden", task, "rubric.json")
+    if os.path.exists(rub):
+        terms = json.load(open(rub, encoding="utf-8"))["terms"]
+        hit = {k: any(re.search(r, s, re.I) for r in v) for k, v in terms.items()}
+        res["rubric"] = hit
+        res["rubric_hit"] = sum(hit.values())
+        res["rubric_of"] = len(hit)
     if links:
         live = []
         for u in urls:
@@ -115,7 +126,8 @@ def run_scores(d, links):
                 route = m.group(0)
     total = last.get("total_cost_usd")
     out = {
-        "arm": run["arm"], "task": run["task"], "exit_code": run["exit_code"],
+        "arm": run["arm"], "task": run["task"], "rep": run.get("rep"), "run": os.path.basename(d),
+        "exit_code": run["exit_code"],
         "timed_out": run["timed_out"], "errors": [r["subtype"] for r in run["results"]
                                                   if r.get("is_error")],
         "cost_usd": total, "cost_check_sum_models": round(sum(m["cost"] for m in models.values()), 4),
@@ -134,16 +146,19 @@ def run_scores(d, links):
         "changed": diff_stat(os.path.join(d, "work")),
     }
     work = os.path.join(d, "work")
-    if run["task"] == "report":
-        out["report"] = report_scores(work, links)
+    if not os.path.exists(os.path.join(SUITE, "hidden", run["task"], "hidden.test.js")):
+        out["report"] = report_scores(work, links, run["task"])
     else:
         out.update(code_scores(work, run["task"]))
     return out
 
 
 def main():
+    global SUITE
     runs = os.path.abspath(sys.argv[1])
     links = "--links" in sys.argv
+    if "--suite" in sys.argv:
+        SUITE = os.path.abspath(sys.argv[sys.argv.index("--suite") + 1])
     scores = []
     for name in sorted(os.listdir(runs)):
         d = os.path.join(runs, name)
@@ -154,7 +169,7 @@ def main():
     for s in scores:
         q = (s.get("hidden") and f"hidden {s['hidden']['pass']}/{s['hidden']['tests']}") or \
             (s.get("report") and f"words {s['report'].get('words')} urls {s['report'].get('urls')}")
-        print(f"{s['arm']:6} {s['task']:8} ${s['cost_usd']:.4f} wall {s['wall_s']:7.1f}s "
+        print(f"{s['run']:20} ${s['cost_usd']:.4f} wall {s['wall_s']:7.1f}s "
               f"turns {s['turns']:3} go {s['go_sent']} {q} models {list(s['models'])}")
 
 

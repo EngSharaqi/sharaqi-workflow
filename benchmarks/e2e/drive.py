@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """ONE PAID RUN of one task in one arm, through one live `claude -p` process (stream-json in/out).
 
-usage: python3 -I drive.py <plugin|plain> <report|medium|complex> <runs-dir>
+usage: python3 -I drive.py <plugin|plain> <task> <runs-dir> [--suite DIR] [--rep N]
+
+  --suite: folder holding tasks/, fixtures/ (default: this folder). --rep N: run number, appended
+  to the run folder name (<arm>-<task>-<N>).
 
   plugin: prompt `/sharaqi:sharaqi do <task>`, no --model / --effort (the user's defaults and the
           skill's frontmatter decide), plugin loaded from <runs>/plugin (git archive of HEAD).
@@ -46,12 +49,15 @@ def waiting_plan(sid, result_text):
 
 def main():
     arm, task, runs = sys.argv[1], sys.argv[2], os.path.abspath(sys.argv[3])
-    text = open(os.path.join(HERE, "tasks", task + ".txt"), encoding="utf-8").read().strip()
-    out = os.path.join(runs, f"{arm}-{task}")
+    opt = dict(zip(sys.argv[4::2], sys.argv[5::2]))
+    suite = os.path.abspath(opt.get("--suite", HERE))
+    rep = opt.get("--rep")
+    text = open(os.path.join(suite, "tasks", task + ".txt"), encoding="utf-8").read().strip()
+    out = os.path.join(runs, f"{arm}-{task}" + (f"-{rep}" if rep else ""))
     if os.path.exists(out):
         sys.exit(f"{out} exists")
     work = os.path.join(out, "work")
-    shutil.copytree(os.path.join(HERE, "fixtures", task), work)
+    shutil.copytree(os.path.join(suite, "fixtures", task), work)
     git = ["git", "-c", "user.email=bench@example.invalid", "-c", "user.name=bench"]
     subprocess.run(["git", "init", "-q"], cwd=work, check=True)
     subprocess.run(["git", "add", "-A"], cwd=work, check=True)
@@ -116,7 +122,7 @@ def main():
         shutil.copy(events, os.path.join(out, "sharaqi-events.jsonl"))
     last = results[-1] if results else {}
     run = {
-        "arm": arm, "task": task, "session_id": sid, "exit_code": rc, "timed_out": timed_out,
+        "arm": arm, "task": task, "rep": rep, "suite": os.path.relpath(suite, HERE), "session_id": sid, "exit_code": rc, "timed_out": timed_out,
         "wall_s": wall, "messages_sent": sent,
         "results": [{k: r.get(k) for k in ("subtype", "is_error", "total_cost_usd", "duration_ms",
                                             "duration_api_ms", "num_turns", "modelUsage")}
@@ -125,7 +131,7 @@ def main():
     }
     with open(os.path.join(out, "run.json"), "w", encoding="utf-8") as f:
         json.dump(run, f, ensure_ascii=False, indent=2)
-    print(json.dumps({"arm": arm, "task": task, "rc": rc, "wall_s": wall, "gos": gos,
+    print(json.dumps({"arm": arm, "task": task, "rep": rep, "rc": rc, "wall_s": wall, "gos": gos,
                       "cost": [r.get("total_cost_usd") for r in results]}))
 
 

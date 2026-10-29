@@ -1,0 +1,14 @@
+<!doctype html><meta charset=utf-8><title>Complex task: dependency resolver, after the trigger fix</title><style>
+body{margin:0;background:#0f1115;color:#e6e6e6;font:14px/1.45 -apple-system,Segoe UI,Roboto,sans-serif;padding:28px}
+h1{font-size:20px;margin:0 0 4px}h2{font-size:15px;margin:22px 0 8px}.sub{color:#9aa0a6;margin:0 0 20px;font-size:12.5px}
+table{border-collapse:collapse;width:100%;margin-bottom:18px}
+th,td{padding:6px 9px;border-bottom:1px solid #262a33;text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}th{color:#9aa0a6;font-weight:600;font-size:12px}
+.g{color:#5fd38d}.r{color:#ff7b72}.m{color:#9aa0a6}.w{white-space:normal;text-align:left}
+.bars{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.card{background:#161a22;border:1px solid #262a33;border-radius:10px;padding:12px}
+.card h3{margin:0 0 8px;font-size:12.5px}.row{display:flex;align-items:center;gap:8px;margin:4px 0;font-size:12px}
+.lab{width:46px;color:#9aa0a6}.bar{height:13px;border-radius:3px}.pl{background:#7aa2f7}.pn{background:#e0af68}
+pre{background:#0b0d10;border:1px solid #262a33;border-radius:8px;padding:12px;font:12px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap;margin:0 0 14px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}.tag{font-size:11px;color:#9aa0a6;margin:0 0 6px}
+</style><h1>Complex task: dependency resolver, after the trigger fix</h1><p class=sub>2 runs each · same task, fixtures and hidden tests · route after fix named R6·opus-medium, the seat chose inline (planned.md:10 allows it)</p><table><tr><th>Variant</th><th>Cost (mean, runs)</th><th>Wall</th><th>Out tok</th><th>Msgs</th><th>Hidden</th><th>Own tests</th><th>Models (cost)</th></tr><tr><td class=w>plain · Opus 5.5 medium</td><td>$0.803<br><span class=m>$0.814 · $0.791</span></td><td>179 s<br><span class=m>181 · 177</span></td><td>18,852</td><td>1 · 1</td><td>19/19 · 19/19</td><td>32 · 49</td><td class=w>opus-5-5 $0.81 · opus-5-5 $0.79</td></tr><tr><td class=w>plugin before fix · CRITICAL (Sonnet seat + Opus implementer + Opus reviewer)</td><td>$1.062<br><span class=m>$1.021 · $1.103</span></td><td>334 s<br><span class=m>302 · 366</span></td><td>32,736</td><td>2 · 2</td><td>19/19 · 19/19</td><td>26 · 32</td><td class=w>sonnet-5-5 $0.33, opus-5-5 $0.69 · sonnet-5-5 $0.34, opus-5-5 $0.76</td></tr><tr><td class=w>plugin after fix · STANDARD, seat ran inline on Sonnet</td><td>$0.302<br><span class=m>$0.302 · $0.303</span></td><td>140 s<br><span class=m>131 · 150</span></td><td>12,135</td><td>1 · 1</td><td>19/19 · 19/19</td><td>16 · 16</td><td class=w>sonnet-5-5 $0.30 · sonnet-5-5 $0.30</td></tr></table>
